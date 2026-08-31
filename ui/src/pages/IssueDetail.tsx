@@ -37,6 +37,7 @@ import {
   readIssueDetailBreadcrumb,
   readIssueDetailHeaderSeed,
   rememberIssueDetailLocationState,
+  shouldArmIssueDetailInboxQuickArchive,
 } from "../lib/issueDetailBreadcrumb";
 import { resolveIssueActiveRun, shouldTrackIssueActiveRun } from "../lib/issueActiveRun";
 import { getIssueDetailQueryOptions } from "../lib/issueDetailCache";
@@ -89,6 +90,7 @@ import {
 } from "../lib/optimistic-issue-comments";
 import { clearIssueExecutionRun, removeLiveRunById, upsertInterruptedRun } from "../lib/optimistic-issue-runs";
 import { useProjectOrder } from "../hooks/useProjectOrder";
+import { recordRecentTask } from "../lib/recent-tasks";
 import { relativeTime, cn, formatDurationMs, formatTokens, visibleRunCostUsd } from "../lib/utils";
 import { liveBlueBadge } from "../lib/status-colors";
 import { ApprovalCard } from "../components/ApprovalCard";
@@ -102,6 +104,7 @@ import {
 import { TaskChatThread } from "../components/TaskChatThread";
 import type { TaskChatIssueBrief } from "../components/task-chat/TaskChatDescriptionBubble";
 import { useClassicTaskInterfaceEnabled } from "../hooks/useClassicTaskInterfaceEnabled";
+import { useStreamlinedUiEnabled } from "../hooks/useStreamlinedUiEnabled";
 import { workModeMetaFor } from "../lib/work-mode-meta";
 import { IssueContinuationHandoff } from "../components/IssueContinuationHandoff";
 import { IssueAttachmentsSection } from "../components/IssueAttachmentsSection";
@@ -744,14 +747,34 @@ function IssueChatSkeleton() {
   );
 }
 
+function useTaskDetailInterfaceMode() {
+  const {
+    enabled: classicTaskInterfacePreferenceEnabled,
+    loaded: classicTaskInterfaceLoaded,
+  } = useClassicTaskInterfaceEnabled();
+  const {
+    enabled: streamlinedUiEnabled,
+    loaded: streamlinedUiLoaded,
+  } = useStreamlinedUiEnabled();
+  const classicTaskInterfaceEnabled = classicTaskInterfacePreferenceEnabled;
+  const taskChatShellEnabled = !classicTaskInterfaceEnabled;
+
+  return {
+    classicTaskInterfaceEnabled,
+    taskChatShellEnabled,
+    streamlinedTaskDetailEnabled: streamlinedUiEnabled && taskChatShellEnabled,
+    streamlinedUiEnabled,
+    loaded: classicTaskInterfaceLoaded && streamlinedUiLoaded,
+  };
+}
+
 function IssueDetailLoadingState({
   headerSeed,
 }: {
   headerSeed: ReturnType<typeof readIssueDetailHeaderSeed>;
 }) {
   const identifier = headerSeed?.identifier ?? headerSeed?.id.slice(0, 8) ?? null;
-  const { enabled: classicTaskInterfaceEnabled } = useClassicTaskInterfaceEnabled();
-  const taskChatShellEnabled = !classicTaskInterfaceEnabled;
+  const { taskChatShellEnabled } = useTaskDetailInterfaceMode();
 
   return (
     <div
@@ -853,6 +876,7 @@ function IssueDetailLoadingState({
 
 interface InboxMobileToolbarProps {
   backHref: string;
+  preferHistoryBack: boolean;
   issueId: string | undefined;
   issueHidden: boolean;
   onArchive: () => void;
@@ -864,6 +888,7 @@ interface InboxMobileToolbarProps {
 
 function InboxMobileToolbar({
   backHref,
+  preferHistoryBack,
   issueId: issueIdProp,
   issueHidden,
   onArchive,
@@ -884,7 +909,7 @@ function InboxMobileToolbar({
           // Use browser back when we have real history so the inbox
           // restores its scroll position. Fall back to a PUSH to
           // backHref when there's no prior entry (e.g. deep-link).
-          if (window.history.length > 1) {
+          if (preferHistoryBack && window.history.length > 1) {
             navigate(-1);
           } else {
             navigate(backHref);
@@ -1133,11 +1158,9 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
   externalReferences,
   linkCaseReferences,
 }: IssueDetailChatTabProps) {
-  // Seam for the Classic Task Interface (flag: enableClassicTaskInterface).
-  // Flag ON renders the legacy IssueChatThread verbatim; flag OFF (the
-  // default) renders the chat-style TaskChatThread. Both components share one
-  // prop type, so no cast is needed.
-  const { enabled: classicTaskInterfaceEnabled } = useClassicTaskInterfaceEnabled();
+  // Preserve master's Classic Task Interface seam: Streamlined UI changes the
+  // TaskChatThread presentation but never swaps it for IssueChatThread.
+  const { classicTaskInterfaceEnabled, streamlinedTaskDetailEnabled } = useTaskDetailInterfaceMode();
   const ThreadComponent = classicTaskInterfaceEnabled ? IssueChatThread : TaskChatThread;
   const { data: activity } = useQuery({
     queryKey: queryKeys.issues.activity(issueId),
@@ -1310,7 +1333,10 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
         ) : (
           // Chat shell: center the bubbles at the thread cap (mirrors
           // TaskChatThreadView) and dock a composer placeholder beneath them.
-          <div className="mx-auto flex w-full max-w-(--tc-shell-max-w) flex-col gap-3 px-4 py-4">
+          <div className={cn(
+            "mx-auto flex w-full max-w-(--tc-shell-max-w) flex-col gap-3 px-4 py-4",
+            streamlinedTaskDetailEnabled && "md:px-0",
+          )}>
             <IssueChatSkeleton />
             <IssueChatComposerSkeleton className="mt-3" />
           </div>
@@ -1700,16 +1726,16 @@ function IssueDetailActivityTab({
 export function IssueDetail() {
   const { issueId } = useParams<{ issueId: string }>();
   const { selectedCompanyId } = useCompany();
-  // Classic Task Interface (flag: enableClassicTaskInterface): with the flag
-  // OFF (the default) the chat-style thread owns the center column — the
-  // legacy title/description block, sub-tasks table, plan decompositions and
-  // Documents section are gated off (plan lives in the properties-pane Plan
-  // tab). Flag ON restores the legacy page.
+  // Classic Task Interface remains the sole task-chat-vs-pre-chat switch from
+  // master. Streamlined UI only layers the new task-detail presentation onto
+  // master's default task-chat shell.
   const {
-    enabled: classicTaskInterfaceEnabled,
-    loaded: classicTaskInterfaceLoaded,
-  } = useClassicTaskInterfaceEnabled();
-  const taskChatShellEnabled = !classicTaskInterfaceEnabled;
+    classicTaskInterfaceEnabled,
+    taskChatShellEnabled,
+    streamlinedTaskDetailEnabled,
+    streamlinedUiEnabled,
+    loaded: taskInterfaceSettingsLoaded,
+  } = useTaskDetailInterfaceMode();
   // Chat-style: the page wrapper spans the full center pane so the thread's
   // scroll viewport (and its scrollbar) reaches the properties-pane border;
   // every non-thread section re-centers itself at the 60rem shell cap instead.
@@ -1755,12 +1781,29 @@ export function IssueDetail() {
   const [pendingCommentComposerFocusKey, setPendingCommentComposerFocusKey] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const lastMarkedReadIssueIdRef = useRef<string | null>(null);
+  const lastRecordedRecentTaskKeyRef = useRef<string | null>(null);
   const lastScrollIssueIdRef = useRef<string | undefined>(undefined);
   const commentComposerRef = useRef<IssueChatComposerHandle | null>(null);
   const cancelledQueuedOptimisticCommentIdsRef = useRef(new Set<string>());
   const resolvedIssueDetailState = useMemo(
     () => readIssueDetailLocationState(issueId, location.state, location.search),
     [issueId, location.state, location.search],
+  );
+  const relationIssueLinkState = useMemo(() => {
+    const sourceState = resolvedIssueDetailState ?? location.state;
+    if (!streamlinedTaskDetailEnabled) return sourceState;
+    if (typeof sourceState !== "object" || sourceState === null) return sourceState;
+    return {
+      ...sourceState,
+      // The inbox `y` shortcut is intentionally armed only for the selected
+      // inbox row. Preserve the origin/breadcrumb when opening a related task,
+      // but do not let that one-row archive affordance leak to the relation.
+      issueDetailInboxQuickArchiveArmed: false,
+    };
+  }, [location.state, resolvedIssueDetailState, streamlinedTaskDetailEnabled]);
+  const preferInboxHistoryBack = useMemo(
+    () => readIssueDetailLocationState(null, location.state)?.issueDetailSource === "inbox",
+    [location.state],
   );
   const issueHeaderSeed = useMemo(
     () => readIssueDetailHeaderSeed(location.state) ?? readIssueDetailHeaderSeed(resolvedIssueDetailState),
@@ -1957,7 +2000,7 @@ export function IssueDetail() {
     placeholderData: keepPreviousDataForSameQueryTail<Issue[]>(resolvedCompanyId ?? "pending"),
   });
 
-  const { data: session } = useQuery({
+  const { data: session, isFetched: sessionResolved } = useQuery({
     queryKey: queryKeys.auth.session,
     queryFn: () => authApi.getSession(),
   });
@@ -1968,6 +2011,13 @@ export function IssueDetail() {
     enabled: !!selectedCompanyId,
   });
   const currentUserId = session?.user?.id ?? session?.session?.userId ?? null;
+  useEffect(() => {
+    if (!streamlinedUiEnabled || !issue || !sessionResolved) return;
+    const recentTaskKey = `${issue.id}:${currentUserId ?? "__local_board__"}`;
+    if (lastRecordedRecentTaskKeyRef.current === recentTaskKey) return;
+    lastRecordedRecentTaskKeyRef.current = recentTaskKey;
+    recordRecentTask(issue, currentUserId);
+  }, [issue, currentUserId, sessionResolved, streamlinedUiEnabled]);
   const { data: boardAccess } = useQuery({
     queryKey: queryKeys.access.currentBoardAccess,
     queryFn: () => accessApi.getCurrentBoardAccess(),
@@ -2643,13 +2693,9 @@ export function IssueDetail() {
     updateChildIssue.mutate({ id, data });
   }, [updateChildIssue.mutate]);
 
-  // PAP-496: the chat shell keeps the full sub-task tree directly below the
-  // title in the center column. This is the tree's single chat-shell home; the
-  // Properties pane does not duplicate it. Classic mode keeps its existing
-  // center-column section below the header.
   const subTasksTree = useMemo(
     () =>
-      taskChatShellEnabled && issue && showRichSubIssuesSection ? (
+      taskChatShellEnabled && !streamlinedTaskDetailEnabled && issue && showRichSubIssuesSection ? (
         <IssuesList
           issues={childIssues}
           isLoading={childIssuesLoading}
@@ -2671,6 +2717,7 @@ export function IssueDetail() {
       ) : null,
     [
       taskChatShellEnabled,
+      streamlinedTaskDetailEnabled,
       issue,
       showRichSubIssuesSection,
       childIssues,
@@ -3512,6 +3559,7 @@ export function IssueDetail() {
       <IssueProperties
         issue={panelIssue}
         childIssues={panelChildIssues}
+        issueLinkState={streamlinedTaskDetailEnabled ? relationIssueLinkState : undefined}
         onAddSubIssue={openNewSubIssue}
         onUpdate={handleIssuePropertiesUpdate}
         hasActiveRun={resolvedHasActiveRun}
@@ -3533,6 +3581,8 @@ export function IssueDetail() {
     openPanel,
     panelChildIssues,
     panelIssue,
+    relationIssueLinkState,
+    streamlinedTaskDetailEnabled,
     suppressPanelForFirstTask,
     resolvedHasActiveRun,
     checkIssueMonitorNow.isPending,
@@ -3549,6 +3599,9 @@ export function IssueDetail() {
   const goToInboxShortcutTimeoutRef = useRef<number | null>(null);
   const canQuickArchiveFromInbox =
     keyboardShortcutsEnabled &&
+    (!streamlinedUiEnabled || (
+      isFromInbox && shouldArmIssueDetailInboxQuickArchive(location.state)
+    )) &&
     !issue?.hiddenAt;
 
   useEffect(() => {
@@ -3683,7 +3736,7 @@ export function IssueDetail() {
 
     // The classic interface owns document links in its center-column
     // Documents section. Do not open its tab-less properties panel.
-    if (!classicTaskInterfaceLoaded || !taskChatShellEnabled) return false;
+    if (!taskInterfaceSettingsLoaded || !taskChatShellEnabled) return false;
 
     if (isMobile) {
       setMobilePropsOpen(true);
@@ -3702,7 +3755,7 @@ export function IssueDetail() {
     }));
     return true;
   }, [
-    classicTaskInterfaceLoaded,
+    taskInterfaceSettingsLoaded,
     isMobile,
     issue?.id,
     issueId,
@@ -3934,6 +3987,7 @@ export function IssueDetail() {
     setMobileToolbar(
       <InboxMobileToolbar
         backHref={backHref}
+        preferHistoryBack={streamlinedUiEnabled ? preferInboxHistoryBack : true}
         issueId={issue?.id}
         issueHidden={issueHidden}
         archivePending={archivePending}
@@ -3945,7 +3999,7 @@ export function IssueDetail() {
     );
 
     return () => setMobileToolbar(null);
-  }, [showInboxToolbar, backHref, issue?.id, issueHidden, archivePending, setMobileToolbar]);
+  }, [showInboxToolbar, backHref, preferInboxHistoryBack, streamlinedUiEnabled, issue?.id, issueHidden, archivePending, setMobileToolbar]);
 
   const attachmentsInitialLoading = attachmentsLoading && attachments === undefined;
   const loadOlderComments = useCallback(() => {
@@ -4535,18 +4589,47 @@ export function IssueDetail() {
         </nav>
   );
 
+  const issueStatusControl = (
+    <StatusIcon
+      status={issue.status}
+      size="lg"
+      blockerAttention={issue.blockerAttention}
+      onChange={(status) => updateIssue.mutate({ status })}
+    />
+  );
+
   const issueHeaderBlock = (
       <div
         data-testid="issue-detail-header"
-        className={cn("space-y-3", shellSectionClass)}
+        className={cn(streamlinedTaskDetailEnabled ? "space-y-2" : "space-y-3", shellSectionClass)}
       >
-        <div className="flex items-center gap-2 min-w-0 flex-wrap">
-          <StatusIcon
-            status={issue.status}
-            size="lg"
-            blockerAttention={issue.blockerAttention}
-            onChange={(status) => updateIssue.mutate({ status })}
-          />
+        {streamlinedTaskDetailEnabled ? (
+          <div className="flex min-w-0 items-center gap-2">
+            {issueStatusControl}
+            <div data-slot="task-detail-title" className="flex min-w-0 flex-1 items-baseline gap-2">
+              <InlineEditor
+                value={issue.title}
+                onSave={(title) => updateIssue.mutateAsync({ title })}
+                as="h2"
+                className="min-w-0 text-xl font-semibold leading-normal text-balance"
+              />
+              <span
+                data-slot="task-title-identifier"
+                className="shrink-0 font-mono text-sm text-muted-foreground"
+              >
+                {issue.identifier ?? issue.id.slice(0, 8)}
+              </span>
+            </div>
+          </div>
+        ) : null}
+
+        <div
+          className={cn(
+            "flex min-w-0 flex-wrap items-center gap-2",
+            streamlinedTaskDetailEnabled && "gap-x-6 gap-y-2 pl-7",
+          )}
+        >
+          {!streamlinedTaskDetailEnabled ? issueStatusControl : null}
           {/* PAP-411: priority UI hidden behind SHOW_TASK_PRIORITY_UI. */}
           {SHOW_TASK_PRIORITY_UI && (
             <PriorityIcon
@@ -4554,8 +4637,11 @@ export function IssueDetail() {
               onChange={(priority) => updateIssue.mutate({ priority })}
             />
           )}
-          <span className="text-sm font-mono text-muted-foreground shrink-0">{issue.identifier ?? issue.id.slice(0, 8)}</span>
-
+          {!streamlinedTaskDetailEnabled ? (
+            <span className="shrink-0 font-mono text-sm text-muted-foreground">
+              {issue.identifier ?? issue.id.slice(0, 8)}
+            </span>
+          ) : null}
           {hasLiveRuns && (
             <Badge variant="outline" className={cn("gap-1.5 text-(length:--text-nano)", liveBlueBadge)}>
               <span className="relative flex h-1.5 w-1.5">
@@ -4680,7 +4766,7 @@ export function IssueDetail() {
             </div>
           )}
 
-          {!(isMobile && isFromInbox) && (
+          {!streamlinedTaskDetailEnabled && !(isMobile && isFromInbox) && (
             <div className="ml-auto flex items-center gap-0.5 md:hidden shrink-0">
               <Button
                 variant="ghost"
@@ -4702,7 +4788,7 @@ export function IssueDetail() {
           )}
 
           <div className="hidden md:flex items-center md:ml-auto shrink-0">
-            {canArchiveFromInbox && (
+            {!streamlinedTaskDetailEnabled && canArchiveFromInbox && (
               <Button
                 variant="ghost"
                 size="icon-xs"
@@ -4727,33 +4813,50 @@ export function IssueDetail() {
                 <FileCode2 className="h-4 w-4" />
               </Button>
             ) : null}
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={copyIssueToClipboard}
-              title="Copy task as markdown"
-            >
-              {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              className={cn(
-                "shrink-0 transition-opacity duration-200",
-                panelVisible && !suppressPanelForFirstTask
-                  ? "opacity-0 pointer-events-none w-0 overflow-hidden"
-                  : "opacity-100",
-              )}
-              onClick={() => {
-                if (suppressPanelForFirstTask && issue?.id) {
-                  setFirstTaskPanelOverrideIssueId(issue.id);
-                }
-                setPanelVisible(true);
-              }}
-              title="Show properties"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-            </Button>
+            {!streamlinedTaskDetailEnabled ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={copyIssueToClipboard}
+                  title="Copy task as markdown"
+                >
+                  {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className={cn(
+                    "shrink-0 transition-opacity duration-200",
+                    panelVisible && !suppressPanelForFirstTask
+                      ? "opacity-0 pointer-events-none w-0 overflow-hidden"
+                      : "opacity-100",
+                  )}
+                  onClick={() => {
+                    if (suppressPanelForFirstTask && issue?.id) {
+                      setFirstTaskPanelOverrideIssueId(issue.id);
+                    }
+                    setPanelVisible(true);
+                  }}
+                  title="Show properties"
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                </Button>
+              </>
+            ) : suppressPanelForFirstTask ? (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className="shrink-0"
+                onClick={() => {
+                  if (issue?.id) setFirstTaskPanelOverrideIssueId(issue.id);
+                  setPanelVisible(true);
+                }}
+                title="Show properties"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+              </Button>
+            ) : null}
 
             <Popover open={moreOpen} onOpenChange={setMoreOpen}>
               <PopoverTrigger asChild>
@@ -4772,8 +4875,45 @@ export function IssueDetail() {
                 >
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
-              </PopoverTrigger>
+            </PopoverTrigger>
             <PopoverContent className="w-52 p-1" align="end">
+              {streamlinedTaskDetailEnabled ? (
+                <>
+                  <button
+                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-accent/50"
+                    onClick={() => {
+                      openNewSubIssue();
+                      setMoreOpen(false);
+                    }}
+                  >
+                    <Plus className="h-3 w-3" />
+                    Add subtask
+                  </button>
+                  <button
+                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-accent/50"
+                    onClick={() => {
+                      void copyIssueToClipboard();
+                      setMoreOpen(false);
+                    }}
+                  >
+                    {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                    Copy as markdown
+                  </button>
+                  {canArchiveFromInbox ? (
+                    <button
+                      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-accent/50 disabled:opacity-50"
+                      disabled={archivePending}
+                      onClick={() => {
+                        if (!archivePending && issue?.id) archiveFromInbox.mutate(issue.id);
+                        setMoreOpen(false);
+                      }}
+                    >
+                      <Archive className="h-3 w-3" />
+                      Archive from inbox
+                    </button>
+                  ) : null}
+                </>
+              ) : null}
               {canPauseLeafWork ? (
                 <button
                   className="flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50"
@@ -4877,14 +5017,16 @@ export function IssueDetail() {
           </div>
         </div>
 
-        <InlineEditor
-          value={issue.title}
-          onSave={(title) => updateIssue.mutateAsync({ title })}
-          as="h2"
-          className={taskChatShellEnabled ? "text-base font-semibold" : "text-xl font-bold"}
-        />
+        {!streamlinedTaskDetailEnabled ? (
+          <InlineEditor
+            value={issue.title}
+            onSave={(title) => updateIssue.mutateAsync({ title })}
+            as="h2"
+            className={taskChatShellEnabled ? "text-base font-semibold" : "text-xl font-bold"}
+          />
+        ) : null}
 
-        {taskChatShellEnabled ? subTasksTree : null}
+        {taskChatShellEnabled && !streamlinedTaskDetailEnabled ? subTasksTree : null}
 
         <IssueMonitorBanner
           issue={issue}
@@ -5269,17 +5411,18 @@ export function IssueDetail() {
         </TabsList>
         )}
 
-        {/* Flag ON the thread viewport extends under main's horizontal padding
-            (symmetric, so the centered column keeps the same axis) and the
-            scrollbar sits flush against the properties-pane border. */}
+        {/* The chat shell keeps the page's responsive 16px/24px gutters so
+            thread content and the composer do not touch either sidebar. */}
         <TabsContent
           data-testid="issue-detail-content"
           value="chat"
           className={
             taskChatShellEnabled
               ? isMobile
-                ? "-mx-4"
-                : "-mx-4 md:-mx-6 flex min-h-0 flex-col"
+                ? streamlinedTaskDetailEnabled ? undefined : "-mx-4"
+                : streamlinedTaskDetailEnabled
+                  ? "flex min-h-0 flex-col"
+                  : "-mx-4 md:-mx-6 flex min-h-0 flex-col"
               : undefined
           }
         >
@@ -5633,6 +5776,7 @@ export function IssueDetail() {
               <IssueProperties
                 issue={issue}
                 childIssues={childIssues}
+                issueLinkState={streamlinedTaskDetailEnabled ? relationIssueLinkState : undefined}
                 onAddSubIssue={openNewSubIssue}
                 onUpdate={(data) => updateIssue.mutate(data)}
                 inline

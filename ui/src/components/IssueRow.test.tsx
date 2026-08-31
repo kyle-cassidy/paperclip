@@ -122,6 +122,124 @@ describe("IssueRow", () => {
     });
   });
 
+  it("uses stable canonical identifier and timestamp columns at the trailing edge", () => {
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(
+        <IssueRow
+          issue={createIssue({ identifier: "PAP-42", title: "Canonical task" })}
+          presentation="task"
+          metadata={<span>Live</span>}
+          actions={<button type="button">More</button>}
+          trailingMeta="Updated now"
+        />,
+      );
+    });
+
+    const row = container.querySelector('[data-slot="task-row"]');
+    const leading = row?.querySelector('[data-slot="task-row-leading"]');
+    const title = row?.querySelector('[data-slot="task-row-title"]');
+    const metadata = row?.querySelector('[data-slot="task-row-metadata"]');
+    const identifier = row?.querySelector('[data-slot="task-row-identifier"]');
+    const timestamp = row?.querySelector('[data-slot="task-row-timestamp"]');
+    const actions = row?.querySelector('[data-slot="task-row-actions"]');
+    const link = row?.querySelector('[data-inbox-issue-link]');
+
+    expect(leading?.querySelector("svg")).not.toBeNull();
+    expect(title?.textContent).toContain("Canonical task");
+    expect(metadata?.textContent).toBe("Live");
+    expect(identifier?.textContent).toBe("PAP-42");
+    expect(timestamp?.textContent).toBe("Updated now");
+    expect(actions?.textContent).toBe("More");
+    expect(identifier?.className).toContain("w-20");
+    expect(timestamp?.className).toContain("w-24");
+    if (!link || !metadata || !identifier || !timestamp || !actions) throw new Error("Expected canonical task row slots");
+    expect(link.contains(actions)).toBe(false);
+    expect(metadata.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(actions.compareDocumentPosition(identifier) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(identifier.compareDocumentPosition(timestamp) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(timestamp.nextElementSibling).toBeNull();
+
+    act(() => root.unmount());
+  });
+
+  it("emphasizes unread canonical titles and overlays the accessible mark-read control", () => {
+    const root = createRoot(container);
+    const onMarkRead = vi.fn();
+    act(() => {
+      root.render(
+        <IssueRow
+          issue={createIssue()}
+          presentation="task"
+          unreadState="visible"
+          onMarkRead={onMarkRead}
+        />,
+      );
+    });
+
+    const row = container.querySelector('[data-slot="task-row"]');
+    const title = row?.querySelector('[data-slot="task-row-title"]');
+    const unreadSlot = row?.querySelector('[data-testid="issue-row-unread-slot"]');
+    const markReadButton = unreadSlot?.querySelector<HTMLButtonElement>('button[aria-label="Mark as read"]');
+    expect(row?.getAttribute("data-unread")).toBe("true");
+    expect(title?.className).toContain("font-semibold");
+    expect(unreadSlot).not.toBeNull();
+    expect(unreadSlot?.className).toContain("absolute");
+    expect(markReadButton).not.toBeNull();
+    expect(markReadButton?.closest("a")).toBeNull();
+
+    act(() => markReadButton?.click());
+    expect(onMarkRead).toHaveBeenCalledTimes(1);
+
+    act(() => root.unmount());
+  });
+
+  it("keeps canonical leading geometry independent of unread state", () => {
+    const root = createRoot(container);
+    act(() => {
+      root.render(
+        <>
+          <IssueRow issue={createIssue({ id: "read" })} presentation="task" unreadState="hidden" />
+          <IssueRow issue={createIssue({ id: "plain" })} presentation="task" />
+        </>,
+      );
+    });
+
+    const rows = Array.from(container.querySelectorAll('[data-slot="task-row"]'));
+    const unreadSlot = rows[0]?.querySelector('[data-testid="issue-row-unread-slot"]');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.className).toBe(rows[1]?.className);
+    expect(unreadSlot).not.toBeNull();
+    expect(unreadSlot?.className).toContain("absolute");
+    expect(unreadSlot?.querySelector('button[aria-label="Mark as read"]')).toBeNull();
+    expect(rows[1]?.querySelector('[data-testid="issue-row-unread-slot"]')).toBeNull();
+
+    act(() => root.unmount());
+  });
+
+  it("preserves task-tree indentation slots in the canonical layout", () => {
+    const root = createRoot(container);
+    act(() => {
+      root.render(
+        <IssueRow
+          issue={createIssue()}
+          presentation="task"
+          treeGuides={2}
+          chevronInGuide
+          leadingControl={<button type="button">Expand</button>}
+        />,
+      );
+    });
+
+    expect(container.querySelectorAll('[data-slot="task-row-tree-guide"]')).toHaveLength(2);
+    expect(container.querySelector('[data-slot="task-row-leading"]')?.textContent).toContain("Expand");
+    for (const connector of container.querySelectorAll('[data-slot="task-row-tree-connector"]')) {
+      expect(connector.className).toContain("left-7");
+    }
+    act(() => root.unmount());
+  });
+
   it("keeps editable row controls keyboard-accessible and outside the navigation link", () => {
     const root = createRoot(container);
 
@@ -507,6 +625,19 @@ describe("IssueRow", () => {
     act(() => {
       root.unmount();
     });
+  });
+
+  it("never renders a horizontal divider in canonical task presentation", () => {
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(<IssueRow issue={createIssue()} presentation="task" showDivider />);
+    });
+
+    const row = container.querySelector('[data-slot="task-row"]');
+    expect(row?.className).not.toContain("border-b");
+
+    act(() => root.unmount());
   });
 
   it("keeps the hover wash on the row root while the overlay link stays a bare positioning layer", () => {

@@ -11,12 +11,10 @@ import { Badge } from "@/components/ui/badge";
  * Forces the full-label (non-rail) presentation for any `SidebarNavItem`
  * rendered beneath it, regardless of the global `useSidebar().collapsed` state.
  *
- * Takeover routes (PAP-10695) collapse the app `<Sidebar/>` to its 64px rail
- * and render the contextual nav in a fixed 240px `SecondarySidebar`. That pane
- * is always wide enough for labels, but its `SidebarNavItem` children still
- * read the *global* `collapsed=true` and would otherwise render icon-only —
- * leaving the settings nav unreadable (PAP-10700). Wrapping the pane in this
- * provider decouples its items from the global rail collapse.
+ * Contextual takeover routes replace the global navigation inside the same
+ * sidebar shell. The user's saved global collapse preference can still be
+ * `collapsed=true`, so this provider keeps contextual navigation readable
+ * without mutating that preference.
  */
 const SidebarNavExpandedContext = createContext(false);
 
@@ -90,11 +88,11 @@ export function SidebarNavItem({
   liveAccessory,
 }: SidebarNavItemProps) {
   const { isMobile, setSidebarOpen, collapsed, peeking } = useSidebar();
-  // A fixed-width contextual pane (SecondarySidebar) forces full labels even
-  // when the global app sidebar is collapsed to its rail (PAP-10700).
+  // A contextual takeover forces full labels even when the saved global app
+  // sidebar preference is collapsed.
   const forceExpanded = useSidebarNavExpanded();
   // The icon-only rail presentation only applies when pinned collapsed and not
-  // peeking; a peek/expanded panel — or an expanded contextual pane — restores
+  // peeking; a peek/expanded panel — or a contextual takeover — restores
   // the full label + badge.
   const rail = collapsed && !peeking && !forceExpanded;
 
@@ -129,8 +127,8 @@ export function SidebarNavItem({
           // (agents/projects) reserve extra right padding via className.
           "flex items-center gap-2.5 mx-2 rounded-lg px-2 py-1.5 pointer-coarse:py-1 text-(length:--text-compact) font-medium transition-colors",
           (active ?? isActive)
-            ? "bg-accent text-foreground"
-            : "text-foreground/80 hover:bg-accent/50 hover:text-foreground",
+            ? "bg-background text-foreground"
+            : "text-foreground/80 hover:bg-background hover:text-foreground",
           className,
         )
       }

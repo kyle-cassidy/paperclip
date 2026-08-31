@@ -40,6 +40,7 @@ import { TaskChatThreadView, taskChatContentKey } from "@/components/task-chat/T
 import { TaskChatComposer } from "@/components/task-chat/TaskChatComposer";
 import { useWindowAutoFollow } from "@/components/task-chat/useWindowAutoFollow";
 import { useSidebar } from "@/context/SidebarContext";
+import { useStreamlinedUiEnabled } from "@/hooks/useStreamlinedUiEnabled";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useIssuePlanDocument } from "@/hooks/useIssuePlanDocument";
@@ -51,6 +52,7 @@ import {
   TaskChatBlockerLinks,
   TaskChatLiveWorkLinks,
 } from "@/components/task-chat/TaskChatBlockerLinks";
+import { TaskChatPresentationProvider } from "@/components/task-chat/presentation-mode";
 
 function toMs(value: Date | string | null | undefined): number {
   if (!value) return 0;
@@ -64,6 +66,16 @@ function toMs(value: Date | string | null | undefined): number {
 // well within this as soon as the settled turn/comment lands.
 const SETTLING_TAIL_MAX_MS = 15_000;
 const EMPTY_LIVE_ISSUE_IDS: ReadonlySet<string> = new Set<string>();
+const LONG_THREAD_BLOCKER_REPEAT_COUNT = 4;
+
+export function shouldRepeatTaskChatBlockers(items: TaskChatItem[]): boolean {
+  const conversationItems = items.filter((item) => (
+    item.kind === "brief"
+    || item.kind === "interaction"
+    || (item.kind === "message" && !item.interstitial)
+  ));
+  return conversationItems.length >= LONG_THREAD_BLOCKER_REPEAT_COUNT;
+}
 
 export type TaskChatThreadProps = ComponentProps<typeof IssueChatThread>;
 
@@ -90,6 +102,7 @@ export type TaskChatThreadProps = ComponentProps<typeof IssueChatThread>;
  * folded row. flag-OFF remains byte-for-byte IssueChatThread.
  */
 export function TaskChatThread(props: TaskChatThreadProps) {
+  const { enabled: streamlinedUiEnabled } = useStreamlinedUiEnabled();
   const {
     comments,
     interactions,
@@ -180,16 +193,6 @@ export function TaskChatThread(props: TaskChatThreadProps) {
       ) : null}
     </>
   ) : undefined;
-
-  const bottomBlockerLinks = liveWorkLinks ? (
-    <TaskChatLiveWorkLinks liveWork={liveWorkLinks} placement="bottom" />
-  ) : blockerLinks ? (
-    <TaskChatBlockerLinks
-      directBlocker={blockerLinks.directBlocker}
-      ultimateBlocker={blockerLinks.ultimateBlocker}
-      placement="bottom"
-    />
-  ) : null;
 
   const linkedRunMetaById = useMemo(() => {
     const map = new Map<string, NonNullable<TaskChatThreadProps["linkedRuns"]>[number]>();
@@ -505,6 +508,18 @@ export function TaskChatThread(props: TaskChatThreadProps) {
       ? `live:${liveWorkLinks.steps.map((step) => `${step.blocker.id}:${step.status}`).join(",")}:${liveWorkLinks.nowRunning.map((blocker) => blocker.id).join(",")}`
       : "";
   const threadContentKey = `${taskChatContentKey(items)}:${tailContentKey}:${blockerContentKey}`;
+  const repeatBlockersAtBottom = !streamlinedUiEnabled || shouldRepeatTaskChatBlockers(items);
+  const bottomBlockerLinks = repeatBlockersAtBottom
+    ? liveWorkLinks ? (
+        <TaskChatLiveWorkLinks liveWork={liveWorkLinks} placement="bottom" />
+      ) : blockerLinks ? (
+        <TaskChatBlockerLinks
+          directBlocker={blockerLinks.directBlocker}
+          ultimateBlocker={blockerLinks.ultimateBlocker}
+          placement="bottom"
+        />
+      ) : null
+    : null;
 
   // Status-pill inputs for the tail (PAP-461, A1): the run's start, its finish
   // (once terminal), and the "called N tools" summary. Memoized on the
@@ -659,6 +674,7 @@ export function TaskChatThread(props: TaskChatThreadProps) {
   useWindowAutoFollow(isMobile ? threadContentKey : 0, isMobile);
 
   return (
+    <TaskChatPresentationProvider mode={streamlinedUiEnabled ? "streamlined" : "production"}>
     <div
       className={cn("flex flex-col", !isMobile && "h-(--tc-thread-max-h) min-h-0 flex-1")}
       data-testid="task-chat-thread"
@@ -668,7 +684,10 @@ export function TaskChatThread(props: TaskChatThreadProps) {
           <div className={isMobile ? undefined : "min-h-0 flex-1 overflow-y-auto"}>
             {threadHeaderWithBlockers ? (
               <div
-                className="mx-auto flex w-full max-w-(--tc-shell-max-w) flex-col gap-6 px-4 pt-4"
+                className={cn(
+                  "mx-auto flex w-full max-w-(--tc-shell-max-w) flex-col gap-6 px-4 pt-4",
+                  streamlinedUiEnabled && "md:px-0",
+                )}
                 data-testid="task-chat-thread-header"
               >
                 {threadHeaderWithBlockers}
@@ -676,7 +695,10 @@ export function TaskChatThread(props: TaskChatThreadProps) {
             ) : null}
             <div className="px-3 py-10 text-center text-sm text-muted-foreground">{emptyMessage}</div>
             {bottomBlockerLinks ? (
-              <div className="mx-auto w-full max-w-(--tc-shell-max-w) px-4 pb-4">
+              <div className={cn(
+                "mx-auto w-full max-w-(--tc-shell-max-w) px-4 pb-4",
+                streamlinedUiEnabled && "md:px-0",
+              )}>
                 {bottomBlockerLinks}
               </div>
             ) : null}
@@ -750,6 +772,7 @@ export function TaskChatThread(props: TaskChatThreadProps) {
               ? "bottom-(--tc-composer-bottom) z-20 transition-[bottom] duration-200 ease-out"
               : "bottom-0 z-10",
             "mx-auto flex w-full max-w-(--tc-shell-max-w) flex-col gap-2 bg-background/80 px-4 pb-2 pt-1 backdrop-blur supports-[backdrop-filter]:bg-background/60",
+            streamlinedUiEnabled && "md:px-0 md:pb-4",
           )}
         >
           {composerAccessory}
@@ -773,5 +796,6 @@ export function TaskChatThread(props: TaskChatThreadProps) {
         </div>
       ) : null}
     </div>
+    </TaskChatPresentationProvider>
   );
 }

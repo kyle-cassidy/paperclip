@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { useStreamlinedTaskChatPresentation } from "./presentation-mode";
 import { Check, ChevronRight, X } from "lucide-react";
 import type { TaskChatTurnItem, TaskChatTurnChildItem } from "./task-chat-model";
 import { TaskChatStatusPill } from "./TaskChatStatusPill";
@@ -14,10 +15,9 @@ interface TaskChatTurnProps {
    */
   timestampPrefix?: string;
   /**
-   * Content rendered on the header row, leading the summary line (PAP-413: the
-   * copy/👍/👎 action cluster). It sits beside the summary button — NOT inside
-   * the expandable fold — so it stays anchored to the summary line when the
-   * tool history expands beneath it, instead of drifting to the fold's center.
+   * Content rendered on the header row (PAP-413: the copy/👍/👎 action
+   * cluster). The inspection caret and timestamp stay left; actions sit at the
+   * stable right edge, outside the expandable fold.
    */
   leading?: ReactNode;
 }
@@ -58,6 +58,7 @@ export function turnSummaryText(summary: TaskChatTurnItem["summary"]): string {
  * and folds when it settles.
  */
 export function TaskChatTurn({ item, renderChild, timestampPrefix, leading }: TaskChatTurnProps) {
+  const streamlined = useStreamlinedTaskChatPresentation();
   const parentRow = !item.settled && item.liveStatus != null;
   // Parent-row live turns and settled turns start as their one-line header;
   // only the headerless legacy live turn starts expanded.
@@ -85,7 +86,10 @@ export function TaskChatTurn({ item, renderChild, timestampPrefix, leading }: Ta
       type="button"
       onClick={() => setOpen((o) => !o)}
       aria-expanded={open}
-      className="group flex items-center gap-2 px-1 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+      className={cn(
+        "group flex items-center gap-2 px-1 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground",
+        streamlined && "min-w-0",
+      )}
       data-testid="task-chat-turn-summary"
     >
       <ChevronRight className={cn("h-3 w-3 shrink-0 transition-transform", open ? "rotate-90" : null)} aria-hidden />
@@ -124,13 +128,17 @@ export function TaskChatTurn({ item, renderChild, timestampPrefix, leading }: Ta
   return (
     <div data-testid="task-chat-turn" data-settled={item.settled ? "true" : "false"}>
       {leading ? (
-        // Actions ride the header row (items-center matches them to the summary
-        // line), and the fold below is a separate sibling — so expanding the
-        // tool history never moves the actions off the summary line (PAP-413).
-        <div className="flex items-center gap-1">
-          {leading}
-          {header}
-        </div>
+        streamlined ? (
+          <div className="flex w-full items-center justify-between gap-2">
+            <div className="min-w-0">{header}</div>
+            <div className="shrink-0">{leading}</div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1">
+            {leading}
+            {header}
+          </div>
+        )
       ) : (
         header
       )}

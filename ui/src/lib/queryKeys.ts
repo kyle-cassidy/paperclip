@@ -67,6 +67,8 @@ export const queryKeys = {
       ] as const,
   },
   audit: {
+    runs: (companyId: string, agentId?: string | null) =>
+      ["audit", companyId, "runs", agentId ?? "__all"] as const,
     agentActions: (
       companyId: string,
       filters: {
@@ -75,6 +77,7 @@ export const queryKeys = {
         responsibleUserId?: string | null;
         runId?: string | null;
         entityType?: string | null;
+        entityId?: string | null;
         action?: string | null;
         from?: string | null;
         to?: string | null;
@@ -90,6 +93,7 @@ export const queryKeys = {
         filters.responsibleUserId ?? "__all",
         filters.runId ?? "__all",
         filters.entityType ?? "__all",
+        filters.entityId ?? "__all",
         filters.action ?? "__all",
         filters.actorType ?? "__all",
         filters.from ?? "",

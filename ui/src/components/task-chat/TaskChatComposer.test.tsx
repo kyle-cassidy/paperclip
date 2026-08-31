@@ -333,6 +333,32 @@ describe("TaskChatComposer", () => {
     expect(onAdd).toHaveBeenCalledWith("do the plan", undefined, undefined);
   });
 
+  it("uses the borderless Paper controls and inverse circular send button", () => {
+    render(
+      <TaskChatComposer
+        onAdd={vi.fn()}
+        workMode="standard"
+        onWorkModeChange={vi.fn()}
+        enableReassign
+        reassignOptions={[{ id: "agent:a1", label: "Chief of Staff" }]}
+        currentAssigneeValue="agent:a1"
+      />,
+    );
+
+    const mode = container.querySelector<HTMLButtonElement>('[data-testid="task-chat-composer-mode"]')!;
+    const assignee = container.querySelector<HTMLButtonElement>('[data-testid="task-chat-composer-assignee"]')!;
+    const send = sendButton();
+
+    expect(mode.classList).not.toContain("border");
+    expect(mode.classList).toContain("bg-foreground/15");
+    expect(assignee.classList).toContain("border-0");
+    expect(assignee.classList).toContain("shadow-none");
+    expect(send.classList).toContain("rounded-full");
+    expect(send.classList).toContain("bg-foreground");
+    expect(send.classList).toContain("text-background");
+    expect(send.classList).toContain("disabled:opacity-100");
+  });
+
   it("passes reopen=true when the issue resumes-to-todo and the assignee is an agent", async () => {
     const onAdd = vi.fn().mockResolvedValue(undefined);
     render(

@@ -18,18 +18,15 @@ interface SidebarContextValue {
   collapsed: boolean;
   setCollapsed: (next: boolean) => void;
   toggleCollapsed: () => void;
-  // True while a secondary sidebar forces the rail: the collapse is locked, so
-  // the expand/toggle affordance must be hidden/inert. Desktop-only.
+  // True while the legacy shell's secondary sidebar forces the global nav to
+  // its rail. The streamlined shell replaces the nav instead and never sets it.
   collapseLocked: boolean;
   // Ephemeral peek (hover flyout). Only meaningful on desktop, collapsed,
   // hover-capable pointer. Never persisted.
   peeking: boolean;
   setPeeking: (next: boolean) => void;
-  // Hard, ephemeral collapse forced by an active secondary sidebar (settings,
-  // plugin `routeSidebar`, …). HIGHER precedence than the user pin — the rule
-  // is "a secondary sidebar always collapses the primary" — but it never
-  // mutates the persisted pin, so leaving the route restores the preference.
-  // Wired by Layout (PAP-10694).
+  // Ephemeral route force used only by the legacy two-sidebar shell. It has
+  // higher precedence than the persisted pin but never mutates that pin.
   forceCollapsed: boolean;
   setForceCollapsed: (next: boolean) => void;
   // Route-requested collapse: a route may *default* the app sidebar to
@@ -142,15 +139,12 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
     };
   }, [pointerCanPeek]);
 
-  // Precedence (highest wins): forced (active secondary sidebar) > explicit user
-  // pin > route request > default expanded. The force is ephemeral and never
-  // touches the persisted pin, so dropping it restores the user's preference.
+  // Legacy secondary-sidebar force > explicit user pin > route request.
   const pinnedOrRequested = userCollapsed !== null ? userCollapsed : routeRequestsCollapsed;
   const desktopCollapsed = forceCollapsed || pinnedOrRequested;
   // Collapsed/peek are desktop-only; mobile always uses the drawer. The user
   // pin is preserved across the breakpoint and reapplies on the desktop side.
   const collapsed = isMobile ? false : desktopCollapsed;
-  // While forced, the pin is locked: the expand/toggle affordance is inert.
   const collapseLocked = !isMobile && forceCollapsed;
   // Peek only applies when collapsed on a hover-capable pointer.
   const peeking = rawPeeking && collapsed && pointerCanPeek;
@@ -161,8 +155,6 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toggleCollapsed = useCallback(() => {
-    // While a secondary sidebar forces the rail, the toggle is locked: it must
-    // neither expand the rail nor mutate the persisted preference.
     if (forceCollapsed) return;
     setCollapsed(!pinnedOrRequested);
   }, [forceCollapsed, pinnedOrRequested, setCollapsed]);

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { useStreamlinedTaskChatPresentation } from "./presentation-mode";
 import type {
   TaskChatInteractionItem,
   TaskChatItem,
@@ -126,6 +127,24 @@ function renderItem(
   }
 }
 
+function isSystemLikeItem(item: TaskChatItem): boolean {
+  return item.kind === "marker" || (item.kind === "message" && item.author === "system");
+}
+
+export function taskChatItemSpacingClass(
+  item: TaskChatItem,
+  previousItem: TaskChatItem | null,
+): string | undefined {
+  if (!previousItem) return undefined;
+  const currentIsSystemLike = isSystemLikeItem(item);
+  const previousIsSystemLike = isSystemLikeItem(previousItem);
+  if (currentIsSystemLike && previousIsSystemLike) return "mt-2";
+  if (currentIsSystemLike || previousIsSystemLike) return "mt-3";
+  if (item.kind === "turn" || previousItem.kind === "turn") return "mt-3";
+  if (item.kind === "interaction" || previousItem.kind === "interaction") return "mt-4";
+  return "mt-6";
+}
+
 /**
  * Presentational render layer for the redesigned task thread. Consumed by both
  * the live thread (adapter over comment/run props) and the dev harness
@@ -145,26 +164,59 @@ export function TaskChatThreadView({
   className,
   scroll = true,
 }: TaskChatThreadViewProps) {
-  const body = (
-    <div className={cn("mx-auto flex w-full max-w-(--tc-shell-max-w) flex-col gap-5 px-4 py-4", className)}>
-      {header ? (
-        <div className="flex flex-col gap-6 pb-2" data-testid="task-chat-thread-header">
-          {header}
-        </div>
-      ) : null}
-      {items.map((item) => (
-        <div key={item.id}>
-          {renderItem(
+  const streamlined = useStreamlinedTaskChatPresentation();
+  const renderedItems = streamlined
+    ? items
+        .map((item) => ({
+          item,
+          content: renderItem(
             item,
             onApprovalDecision,
             renderInteraction,
             renderBrief,
             renderMessageActions,
             renderQueuedAction,
-          )}
+          ),
+        }))
+        .filter((entry) => entry.content !== null)
+    : [];
+  const body = (
+    <div className={cn(
+      "mx-auto flex w-full max-w-(--tc-shell-max-w) flex-col px-4 py-4",
+      streamlined ? "md:px-0" : "gap-5",
+      className,
+    )}>
+      {header ? (
+        <div
+          className={cn("flex flex-col gap-6", streamlined ? "pb-4" : "pb-2")}
+          data-testid="task-chat-thread-header"
+        >
+          {header}
         </div>
-      ))}
-      {tail}
+      ) : null}
+      {streamlined
+        ? renderedItems.map(({ item, content }, index) => (
+            <div
+              key={item.id}
+              className={taskChatItemSpacingClass(item, renderedItems[index - 1]?.item ?? null)}
+              data-thread-item-kind={item.kind === "message" ? item.author : item.kind}
+            >
+              {content}
+            </div>
+          ))
+        : items.map((item) => (
+            <div key={item.id}>
+              {renderItem(
+                item,
+                onApprovalDecision,
+                renderInteraction,
+                renderBrief,
+                renderMessageActions,
+                renderQueuedAction,
+              )}
+            </div>
+          ))}
+      {tail ? (streamlined ? <div className="mt-4">{tail}</div> : tail) : null}
     </div>
   );
 

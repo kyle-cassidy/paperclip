@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { useStreamlinedTaskChatPresentation } from "./presentation-mode";
 import { ArrowDown } from "lucide-react";
 
 const PIN_THRESHOLD_PX = 48;
@@ -41,6 +42,7 @@ interface TaskMessageScrollerProps {
  * while pinned stays instant, so no reflow/jump happens during streaming.
  */
 export function TaskMessageScroller({ children, contentKey, className }: TaskMessageScrollerProps) {
+  const streamlined = useStreamlinedTaskChatPresentation();
   const ref = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
   const easingRef = useRef(false);
@@ -143,7 +145,11 @@ export function TaskMessageScroller({ children, contentKey, className }: TaskMes
         // absolute inset-0 (not h-full): the viewport must equal the flex-sized
         // wrapper exactly — percentage heights don't reliably resolve against
         // flex-determined block heights, which let the thread overflow the page.
-        className={cn("absolute inset-0 overflow-y-auto", className)}
+        className={cn(
+          "absolute inset-0 overflow-y-auto",
+          streamlined && "overflow-x-hidden",
+          className,
+        )}
         data-testid="task-chat-scroller"
       >
         {children}

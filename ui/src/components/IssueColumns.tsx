@@ -47,8 +47,25 @@ const issueColumnDescriptions: Record<InboxIssueColumn, string> = {
   updated: "Latest visible activity time.",
 };
 
+export function issueColumnDescription(
+  column: InboxIssueColumn,
+  presentation: "legacy" | "task" = "legacy",
+): string {
+  if (column === "id" && presentation === "task") {
+    return "Task identifier like PAP-1009 on the trailing edge.";
+  }
+  if (column === "status" && presentation === "task") {
+    return "Task state icon on the leading edge.";
+  }
+  return issueColumnDescriptions[column];
+}
+
+export function issueActivityTimestamp(issue: Issue): string {
+  return timeAgo(issue.lastActivityAt ?? issue.lastExternalCommentAt ?? issue.updatedAt);
+}
+
 export function issueActivityText(issue: Issue): string {
-  return `Updated ${timeAgo(issue.lastActivityAt ?? issue.lastExternalCommentAt ?? issue.updatedAt)}`;
+  return `Updated ${issueActivityTimestamp(issue)}`;
 }
 
 function issueTrailingGridTemplate(columns: InboxIssueColumn[]): string {
@@ -72,6 +89,7 @@ export function IssueColumnPicker({
   onResetColumns,
   title,
   iconOnly = false,
+  rowPresentation = "legacy",
 }: {
   availableColumns: InboxIssueColumn[];
   visibleColumnSet: ReadonlySet<InboxIssueColumn>;
@@ -79,6 +97,7 @@ export function IssueColumnPicker({
   onResetColumns: () => void;
   title: string;
   iconOnly?: boolean;
+  rowPresentation?: "legacy" | "task";
 }) {
   return (
     <DropdownMenu>
@@ -119,7 +138,7 @@ export function IssueColumnPicker({
                 {issueColumnLabels[column]}
               </span>
               <span className="text-xs leading-relaxed text-muted-foreground">
-                {issueColumnDescriptions[column]}
+                {issueColumnDescription(column, rowPresentation)}
               </span>
             </span>
           </DropdownMenuCheckboxItem>
@@ -262,7 +281,7 @@ export function InboxIssueTrailingColumns({
   assigneeContent?: ReactNode;
   onFilterWorkspace?: (workspaceId: string) => void;
 }) {
-  const activityText = timeAgo(issue.lastActivityAt ?? issue.lastExternalCommentAt ?? issue.updatedAt);
+  const activityText = issueActivityTimestamp(issue);
   const userLabel = assigneeUserName ?? formatAssigneeUserLabel(issue.assigneeUserId, currentUserId) ?? "User";
   const originatingActor = deriveOriginatingActor(issue);
   const originatingUserId = originatingActor?.kind === "user" ? originatingActor.id : null;

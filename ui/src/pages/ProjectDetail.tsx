@@ -32,6 +32,7 @@ import { collectLiveIssueIds } from "../lib/liveIssueIds";
 import { projectRouteRef } from "../lib/utils";
 import { PROJECT_ICONS } from "../lib/project-icons";
 import { usePublishSharedQueryData, useSharedPollingQuery } from "../hooks/useSharedPolling";
+import { useStreamlinedUiEnabled } from "../hooks/useStreamlinedUiEnabled";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -229,6 +230,7 @@ function ProjectTilePicker({
 
 function ProjectIssuesList({ projectId, companyId }: { projectId: string; companyId: string }) {
   const queryClient = useQueryClient();
+  const { enabled: streamlinedUiEnabled } = useStreamlinedUiEnabled();
 
   const { data: agents } = useQuery({
     queryKey: queryKeys.agents.list(companyId),
@@ -284,6 +286,7 @@ function ProjectIssuesList({ projectId, companyId }: { projectId: string; compan
       projects={projects}
       liveIssueIds={liveIssueIds}
       projectId={projectId}
+      projectTimelineHref={streamlinedUiEnabled ? `/timeline?projectId=${encodeURIComponent(projectId)}` : undefined}
       viewStateKey="paperclip:project-issues-view"
       onUpdateIssue={(id, data) => updateIssue.mutate({ id, data })}
     />

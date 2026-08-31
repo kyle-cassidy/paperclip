@@ -146,6 +146,16 @@
   --agent-10a: #f2d95f;
   --agent-10b: #4fbcba;
 
+  /* Onboarding mascot artwork (brand-fixed, theme-independent). Keeping the
+     SVG palette in the token layer preserves the source asset while allowing
+     components to remain token-only. */
+  --pill-guy-eye: #060606;
+  --pill-guy-dormant-top: #626262;
+  --pill-guy-dormant-bottom: #101010;
+  --pill-guy-tuft: #2d200d;
+  --pill-guy-alive-top: #3028aa;
+  --pill-guy-alive-bottom: #ff0000;
+
   /* Status colors — one base hue per status, consumed by the agent / task
      status chips and the task status icons. Mode-independent: the `.status-chip`,
      `.status-fill` and inline icon helpers derive the light vs dark
@@ -253,6 +263,8 @@
   --motion-ease-scroll-pill-in: cubic-bezier(0.23, 1, 0.32, 1);
   --motion-ease-scroll-pill-out: cubic-bezier(0.7, 0, 0.84, 0);
   --motion-pane-glide: 320ms;           /* properties-pane maximize/restore glide */
+  --shadow-task-composer: 0 4px 16px 18px rgb(0 0 0 / 10%);
+  --radius-task-composer: 16px;
 
   /* Composer mode-chip hues (v5–v7 decisions): agent + plan reuse the task
      status hues; ask is the v5 blue. Consumed as `--sc` seeds through the
@@ -277,6 +289,7 @@
   /* Redesigned chat-shell column cap (phase 2c): one token caps the page
      wrapper, thread body, and pinned composer so they widen in lockstep. */
   --tc-shell-max-w: 60rem;
+  --sz-66px: 66px;
 
   /* Mobile pinned-composer bottom offset (PAP-495). Default clears just the
      safe-area inset (+20px); Layout raises it to the bottom-nav height
@@ -318,6 +331,7 @@
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
+  --shadow-task-composer: 0 4px 16px 18px rgb(0 0 0 / 26%);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
   --chip-match-title-bg: oklch(0.27 0.04 265 / 0.5);
@@ -482,6 +496,19 @@
 #main-content:has([data-task-chat-shell]) {
   scrollbar-gutter: auto;
 }
+
+/* Paper task-detail properties rhythm: values share the 12px label scale and
+   each section gets a full 24px breathing interval before the next heading. */
+.task-detail-properties [data-property-section="true"] {
+  padding-bottom: calc(var(--spacing) * 6);
+}
+
+.task-detail-properties [data-property-value="true"],
+.task-detail-properties [data-property-value="true"] .text-sm {
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+}
+
 /* Light mode scrollbar on hover */
 .scrollbar-auto-hide:hover {
   scrollbar-color: oklch(0.7 0 0) transparent;

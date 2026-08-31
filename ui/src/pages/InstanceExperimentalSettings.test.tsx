@@ -46,7 +46,7 @@ async function flushReact() {
 const CONFERENCE_TOGGLE_SELECTOR =
   'button[aria-label="Toggle conference room chat experimental setting"]';
 const STREAMLINED_TOGGLE_SELECTOR =
-  'button[aria-label="Toggle streamlined left navigation experimental setting"]';
+  'button[aria-label="Toggle Streamlined UI experimental setting"]';
 const TASK_WATCHDOGS_TOGGLE_SELECTOR =
   'button[aria-label="Toggle task watchdogs experimental setting"]';
 const CLASSIC_TASK_INTERFACE_TOGGLE_SELECTOR =
@@ -76,6 +76,7 @@ function defaultExperimentalSettings(): InstanceExperimentalSettingsPayload {
     enableManagedSandboxOnly: false,
     enableIsolatedWorkspaces: false,
     enableStreamlinedLeftNavigation: true,
+    enableStreamlinedUi: true,
     enableApps: false,
     enablePipelines: false,
     enableCases: false,
@@ -247,13 +248,30 @@ describe("InstanceExperimentalSettings — Conference Room Chat card (PAP-11233)
     expect(mockInstanceSettingsApi.updateExperimental).not.toHaveBeenCalled();
   });
 
-  it("no longer renders the Streamlined Left Navigation toggle (opt-out retired, PAP-12472)", async () => {
+  it("renders and patches the Streamlined UI experimental toggle on and off", async () => {
     await renderPage();
 
-    const headings = [...container.querySelectorAll("section h2")].map((h) => h.textContent);
-    expect(headings).not.toContain("Streamlined Left Navigation Bar");
-    expect(container.querySelector(STREAMLINED_TOGGLE_SELECTOR)).toBeNull();
-    expect(mockInstanceSettingsApi.updateExperimental).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("Streamlined UI");
+    expect(container.textContent).toContain(
+      "Use the simplified main sidebar, shared Tasks and Inbox presentation, focused task detail layout, and contextual navigation across Agents, Routines, Skills, and Settings.",
+    );
+
+    const toggle = container.querySelector<HTMLButtonElement>(STREAMLINED_TOGGLE_SELECTOR);
+    expect(toggle?.getAttribute("aria-checked")).toBe("true");
+
+    await act(() => toggle?.click());
+    await flushReact();
+    expect(mockInstanceSettingsApi.updateExperimental).toHaveBeenLastCalledWith({
+      enableStreamlinedUi: false,
+    });
+    expect(toggle?.getAttribute("aria-checked")).toBe("false");
+
+    await act(() => toggle?.click());
+    await flushReact();
+    expect(mockInstanceSettingsApi.updateExperimental).toHaveBeenLastCalledWith({
+      enableStreamlinedUi: true,
+    });
+    expect(toggle?.getAttribute("aria-checked")).toBe("true");
   });
 
   it("renders and patches the Task Watchdogs experimental toggle on and off", async () => {

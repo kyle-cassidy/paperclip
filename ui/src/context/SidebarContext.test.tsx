@@ -135,45 +135,26 @@ describe("SidebarContext", () => {
     });
   });
 
-  describe("forced collapse (secondary sidebar): overrides the pin, preserves preference", () => {
-    it("forces collapsed even when the user pinned expanded, without mutating the pin", () => {
+  describe("legacy secondary-sidebar force", () => {
+    it("temporarily forces and locks the rail without changing the persisted pin", () => {
       active = renderProvider();
-      // User prefers expanded site-wide.
       act(() => capturedValue?.setCollapsed(false));
-      expect(capturedValue?.collapsed).toBe(false);
-      expect(localStorage.getItem(COLLAPSED_STORAGE_KEY)).toBe("0");
 
-      // Entering a secondary-sidebar route forces the rail and locks it.
       act(() => capturedValue?.setForceCollapsed(true));
       expect(capturedValue?.collapsed).toBe(true);
       expect(capturedValue?.collapseLocked).toBe(true);
-      // The persisted preference is untouched.
       expect(localStorage.getItem(COLLAPSED_STORAGE_KEY)).toBe("0");
-    });
 
-    it("restores the user's preference when the force is cleared (leaving the route)", () => {
-      active = renderProvider();
-      act(() => capturedValue?.setCollapsed(false));
-      act(() => capturedValue?.setForceCollapsed(true));
+      act(() => capturedValue?.toggleCollapsed());
       expect(capturedValue?.collapsed).toBe(true);
+      expect(localStorage.getItem(COLLAPSED_STORAGE_KEY)).toBe("0");
 
-      // Navigating away clears the force; the expanded preference returns.
       act(() => capturedValue?.setForceCollapsed(false));
       expect(capturedValue?.collapsed).toBe(false);
       expect(capturedValue?.collapseLocked).toBe(false);
     });
 
-    it("locks the toggle while forced: toggleCollapsed is a no-op and never writes the pin", () => {
-      active = renderProvider();
-      act(() => capturedValue?.setCollapsed(false));
-      act(() => capturedValue?.setForceCollapsed(true));
-
-      act(() => capturedValue?.toggleCollapsed());
-      expect(capturedValue?.collapsed).toBe(true); // still forced
-      expect(localStorage.getItem(COLLAPSED_STORAGE_KEY)).toBe("0"); // pin unchanged
-    });
-
-    it("never forces or locks on mobile", () => {
+    it("never forces or locks the mobile drawer", () => {
       setViewport({ mobile: true });
       active = renderProvider();
       act(() => capturedValue?.setForceCollapsed(true));

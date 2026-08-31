@@ -41,8 +41,12 @@ async function flushReact() {
 describe("PropertiesPanel", () => {
   let container: HTMLDivElement;
   let root: Root | null = null;
+  let originalInnerWidth: number;
 
-  async function renderPanel({ panelVisible = true }: { panelVisible?: boolean } = {}) {
+  async function renderPanel({
+    panelVisible = true,
+    taskDetailLayout = false,
+  }: { panelVisible?: boolean; taskDetailLayout?: boolean } = {}) {
     mockPanelState.panelContent = <div data-testid="panel-content">content</div>;
     mockPanelState.panelVisible = panelVisible;
     root = createRoot(container);
@@ -50,7 +54,7 @@ describe("PropertiesPanel", () => {
     flushSync(() => {
       root!.render(
         <QueryClientProvider client={queryClient}>
-          <PropertiesPanel />
+          <PropertiesPanel taskDetailLayout={taskDetailLayout} />
         </QueryClientProvider>,
       );
     });
@@ -58,6 +62,8 @@ describe("PropertiesPanel", () => {
   }
 
   beforeEach(() => {
+    originalInnerWidth = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1440 });
     container = document.createElement("div");
     document.body.appendChild(container);
     window.localStorage.clear();
@@ -69,12 +75,14 @@ describe("PropertiesPanel", () => {
     });
     root = null;
     container.remove();
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: originalInnerWidth });
     vi.clearAllMocks();
   });
 
   describe("classic task interface on (legacy panel)", () => {
     beforeEach(() => {
       mockInstanceSettingsApi.getExperimental.mockResolvedValue({
+        enableStreamlinedUi: true,
         enableClassicTaskInterface: true,
       });
     });
@@ -101,20 +109,21 @@ describe("PropertiesPanel", () => {
   describe("classic task interface off (default resizable pane)", () => {
     beforeEach(() => {
       mockInstanceSettingsApi.getExperimental.mockResolvedValue({
+        enableStreamlinedUi: true,
         enableClassicTaskInterface: false,
       });
     });
 
-    it("renders the default 322px width with a drag grip and a maximize button", async () => {
-      await renderPanel();
+    it("renders the Paper task-detail rail width with a drag grip and a maximize button", async () => {
+      await renderPanel({ taskDetailLayout: true });
       const aside = container.querySelector("aside");
       expect(aside).not.toBeNull();
-      expect(aside!.style.width).toBe("322px");
+      expect(aside!.style.width).toBe("434px");
       expect(aside!.querySelector('[role="separator"][aria-label="Resize panel"]')).not.toBeNull();
       expect(container.querySelector('[aria-label="Maximize panel"]')).not.toBeNull();
       const inner = aside!.querySelector<HTMLDivElement>(":scope > div:not([role])");
-      expect(inner!.style.width).toBe("322px");
-      expect(inner!.style.minWidth).toBe("322px");
+      expect(inner!.style.width).toBe("434px");
+      expect(inner!.style.minWidth).toBe("434px");
     });
 
     it("restores a remembered width from localStorage (clamped to the minimum)", async () => {
@@ -141,6 +150,35 @@ describe("PropertiesPanel", () => {
       expect(aside!.style.width).toBe("0px");
       expect(aside!.style.opacity).toBe("0");
       // No grip while hidden.
+      expect(aside!.querySelector('[role="separator"]')).toBeNull();
+    });
+  });
+
+  describe("Streamlined UI off", () => {
+    beforeEach(() => {
+      mockInstanceSettingsApi.getExperimental.mockResolvedValue({
+        enableStreamlinedUi: false,
+        enableClassicTaskInterface: false,
+      });
+    });
+
+    it("restores master's default resizable panel rather than the classic panel", async () => {
+      await renderPanel({ taskDetailLayout: true });
+      const aside = container.querySelector("aside");
+      expect(aside).not.toBeNull();
+      expect(aside!.style.width).toBe("322px");
+      expect(aside!.querySelector('[role="separator"][aria-label="Resize panel"]')).not.toBeNull();
+      expect(container.querySelector('[aria-label="Maximize panel"]')).not.toBeNull();
+    });
+
+    it("still honors the independent Classic Task Interface preference", async () => {
+      mockInstanceSettingsApi.getExperimental.mockResolvedValue({
+        enableStreamlinedUi: false,
+        enableClassicTaskInterface: true,
+      });
+      await renderPanel({ taskDetailLayout: true });
+      const aside = container.querySelector("aside");
+      expect(aside!.style.width).toBe("320px");
       expect(aside!.querySelector('[role="separator"]')).toBeNull();
     });
   });

@@ -17,6 +17,7 @@ import {
   issuePriorityOrder,
   issueQuickFilterPresets,
   issueStatusOrder,
+  searchIssueFilterOptions,
   toggleIssueFilterValue,
   type IssueFilterState,
 } from "../lib/issue-filters";
@@ -52,6 +53,31 @@ type CreatorOption = {
   searchText?: string;
 };
 
+const SEARCHABLE_FILTER_THRESHOLD = 6;
+
+function FilterOptionSearch({
+  value,
+  onChange,
+  label,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  label: string;
+}) {
+  return (
+    <div className="relative">
+      <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={`Search ${label.toLowerCase()}...`}
+        aria-label={`Search ${label.toLowerCase()}`}
+        className="h-8 pl-7 text-xs"
+      />
+    </div>
+  );
+}
+
 export function IssueFiltersPopover({
   state,
   onChange,
@@ -66,6 +92,7 @@ export function IssueFiltersPopover({
   iconOnly = false,
   workspaces,
   creators,
+  presentation = "legacy",
 }: {
   state: IssueFilterState;
   onChange: (patch: Partial<IssueFilterState>) => void;
@@ -80,8 +107,30 @@ export function IssueFiltersPopover({
   iconOnly?: boolean;
   workspaces?: WorkspaceOption[];
   creators?: CreatorOption[];
+  presentation?: "legacy" | "streamlined";
 }) {
+  const streamlined = presentation === "streamlined";
   const [creatorSearch, setCreatorSearch] = useState("");
+  const [assigneeSearch, setAssigneeSearch] = useState("");
+  const [projectSearch, setProjectSearch] = useState("");
+  const [labelSearch, setLabelSearch] = useState("");
+  const [workspaceSearch, setWorkspaceSearch] = useState("");
+  const visibleAgents = useMemo(
+    () => searchIssueFilterOptions(agents, assigneeSearch, (option) => option.name),
+    [agents, assigneeSearch],
+  );
+  const visibleProjects = useMemo(
+    () => searchIssueFilterOptions(projects, projectSearch, (option) => option.name),
+    [projects, projectSearch],
+  );
+  const visibleLabels = useMemo(
+    () => searchIssueFilterOptions(labels, labelSearch, (option) => option.name),
+    [labels, labelSearch],
+  );
+  const visibleWorkspaces = useMemo(
+    () => searchIssueFilterOptions(workspaces, workspaceSearch, (option) => option.name),
+    [workspaces, workspaceSearch],
+  );
   const creatorOptions = creators ?? [];
   const creatorOptionById = useMemo(
     () => new Map(creatorOptions.map((option) => [option.id, option])),
@@ -133,7 +182,9 @@ export function IssueFiltersPopover({
       </PopoverTrigger>
       <PopoverContent
         align="end"
-        className="w-(--sz-calc-10) max-h-(--sz-calc-9) overflow-y-auto overscroll-contain p-0"
+        className={streamlined
+          ? "w-(--sz-calc-10) max-h-(--sz-calc-9) overflow-y-auto overscroll-contain p-0"
+          : "w-(--sz-calc-10) p-0"}
       >
         <div className="space-y-3 p-3">
           <div className="flex items-center justify-between">
@@ -215,7 +266,10 @@ export function IssueFiltersPopover({
             <div className="min-w-0 space-y-3">
               <div className="space-y-1">
                 <span className="text-xs text-muted-foreground">Responsible</span>
-                <div className="max-h-32 space-y-0.5 overflow-y-auto">
+                {streamlined && (agents?.length ?? 0) + (currentUserId ? 2 : 1) > SEARCHABLE_FILTER_THRESHOLD ? (
+                  <FilterOptionSearch value={assigneeSearch} onChange={setAssigneeSearch} label="Responsible" />
+                ) : null}
+                <div data-filter-options="responsible" className={streamlined ? "space-y-0.5" : "max-h-32 space-y-0.5 overflow-y-auto"}>
                   <label className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1 hover:bg-accent/50">
                     <Checkbox
                       checked={state.assignees.includes("__unassigned")}
@@ -233,7 +287,7 @@ export function IssueFiltersPopover({
                       <span className="text-sm">Me</span>
                     </label>
                   ) : null}
-                  {(agents ?? []).map((agent) => (
+                  {(streamlined ? visibleAgents : agents ?? []).map((agent) => (
                     <label key={agent.id} className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1 hover:bg-accent/50">
                       <Checkbox
                         checked={state.assignees.includes(agent.id)}
@@ -275,7 +329,7 @@ export function IssueFiltersPopover({
                       className="h-8 pl-7 text-xs"
                     />
                   </div>
-                  <div className="max-h-32 space-y-0.5 overflow-y-auto">
+                  <div data-filter-options="creators" className={streamlined ? "space-y-0.5" : "max-h-32 space-y-0.5 overflow-y-auto"}>
                     {visibleCreatorOptions.length > 0 ? visibleCreatorOptions.map((creator) => {
                       const selected = state.creators.includes(creator.id);
                       return (
@@ -302,8 +356,11 @@ export function IssueFiltersPopover({
               {projects && projects.length > 0 ? (
                 <div className="space-y-1">
                   <span className="text-xs text-muted-foreground">Project</span>
-                  <div className="max-h-32 space-y-0.5 overflow-y-auto">
-                    {projects.map((project) => (
+                  {streamlined && projects.length > SEARCHABLE_FILTER_THRESHOLD ? (
+                    <FilterOptionSearch value={projectSearch} onChange={setProjectSearch} label="Projects" />
+                  ) : null}
+                  <div data-filter-options="projects" className={streamlined ? "space-y-0.5" : "max-h-32 space-y-0.5 overflow-y-auto"}>
+                    {(streamlined ? visibleProjects : projects).map((project) => (
                       <label key={project.id} className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1 hover:bg-accent/50">
                         <Checkbox
                           checked={state.projects.includes(project.id)}
@@ -321,8 +378,11 @@ export function IssueFiltersPopover({
               {labels && labels.length > 0 ? (
                 <div className="space-y-1">
                   <span className="text-xs text-muted-foreground">Labels</span>
-                  <div className="max-h-32 space-y-0.5 overflow-y-auto">
-                    {labels.map((label) => (
+                  {streamlined && labels.length > SEARCHABLE_FILTER_THRESHOLD ? (
+                    <FilterOptionSearch value={labelSearch} onChange={setLabelSearch} label="Labels" />
+                  ) : null}
+                  <div data-filter-options="labels" className={streamlined ? "space-y-0.5" : "max-h-32 space-y-0.5 overflow-y-auto"}>
+                    {(streamlined ? visibleLabels : labels).map((label) => (
                       <label key={label.id} className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1 hover:bg-accent/50">
                         <Checkbox
                           checked={state.labels.includes(label.id)}
@@ -339,8 +399,11 @@ export function IssueFiltersPopover({
               {workspaces && workspaces.length > 0 ? (
                 <div className="space-y-1">
                   <span className="text-xs text-muted-foreground">Workspace</span>
-                  <div className="max-h-32 space-y-0.5 overflow-y-auto">
-                    {workspaces.map((workspace) => (
+                  {streamlined && workspaces.length > SEARCHABLE_FILTER_THRESHOLD ? (
+                    <FilterOptionSearch value={workspaceSearch} onChange={setWorkspaceSearch} label="Workspaces" />
+                  ) : null}
+                  <div data-filter-options="workspaces" className={streamlined ? "space-y-0.5" : "max-h-32 space-y-0.5 overflow-y-auto"}>
+                    {(streamlined ? visibleWorkspaces : workspaces).map((workspace) => (
                       <label key={workspace.id} className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1 hover:bg-accent/50">
                         <Checkbox
                           checked={state.workspaces.includes(workspace.id)}

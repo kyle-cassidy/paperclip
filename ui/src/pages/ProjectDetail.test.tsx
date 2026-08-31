@@ -246,6 +246,29 @@ describe("ProjectDetail", () => {
     });
   });
 
+  it("gives only the project task list a scoped Timeline destination", async () => {
+    mockLocation.pathname = "/projects/project-1/issues";
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    await act(async () => {
+      root = createRoot(container);
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <ProjectDetail />
+        </QueryClientProvider>,
+      );
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mockIssuesList).toHaveBeenCalledWith(expect.objectContaining({
+      projectId: "project-1",
+      projectTimelineHref: "/timeline?projectId=project-1",
+    }));
+  });
+
   describe("plugin detail-tab deep links", () => {
     const PLUGIN_TAB = "plugin:paperclipai.plugin-llm-wiki:project-knowledge";
     const knowledgeSlot = {
