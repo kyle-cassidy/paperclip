@@ -31,6 +31,7 @@ describe("instance settings service", () => {
       enableManagedSandboxOnly: false,
       enableIsolatedWorkspaces: true,
       enableStreamlinedLeftNavigation: true,
+      enableStreamlinedUi: true,
       enableApps: false,
       enableConferenceRoomChat: false,
       enableClassicTaskInterface: false,
@@ -60,6 +61,15 @@ describe("instance settings service", () => {
       worktreeRunExecutionActivationInstanceId: null,
       issueGraphLivenessAutoRecoveryLookbackHours: 48,
     });
+  });
+
+  it("defaults streamlined UI on without inheriting the retired navigation preference", () => {
+    expect(normalizeExperimentalSettings(undefined).enableStreamlinedUi).toBe(true);
+    expect(normalizeExperimentalSettings({}).enableStreamlinedUi).toBe(true);
+    expect(
+      normalizeExperimentalSettings({ enableStreamlinedLeftNavigation: false }).enableStreamlinedUi,
+    ).toBe(true);
+    expect(normalizeExperimentalSettings({ enableStreamlinedUi: false }).enableStreamlinedUi).toBe(false);
   });
 
   it("defaults enableApps to false for empty and legacy stored settings", () => {

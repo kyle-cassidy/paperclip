@@ -58,6 +58,12 @@ export interface InstanceExperimentalSettings {
   enableManagedSandboxOnly: boolean;
   enableIsolatedWorkspaces: boolean;
   enableStreamlinedLeftNavigation: boolean;
+  /**
+   * Use the streamlined shell, navigation, and contextual-sidebar experience.
+   * Missing legacy values default on; the retired left-navigation preference
+   * remains separate so an old opt-out cannot disable the broader UI.
+   */
+  enableStreamlinedUi: boolean;
   enableApps: boolean;
   enablePipelines: boolean;
   enableCases: boolean;

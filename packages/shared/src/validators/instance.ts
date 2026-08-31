@@ -48,6 +48,7 @@ export const instanceExperimentalSettingsSchema = z.object({
   enableManagedSandboxOnly: z.boolean().default(false),
   enableIsolatedWorkspaces: z.boolean().default(false),
   enableStreamlinedLeftNavigation: z.boolean().default(true),
+  enableStreamlinedUi: z.boolean().default(true),
   enableApps: z.boolean().default(false),
   enablePipelines: z.boolean().default(false),
   enableCases: z.boolean().default(false),
