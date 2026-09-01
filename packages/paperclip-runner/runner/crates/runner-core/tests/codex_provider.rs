@@ -1286,12 +1286,7 @@ fn ambiguous_or_dead_replacement_start_preserves_result_not_exit_authority() {
         provider
             .start_turn("Accept replacement work before failing.", &config.cwd)
             .expect_err("the accepted replacement turn has no valid response");
-        let ambiguous_start_deadline =
-            std::time::Instant::now() + std::time::Duration::from_secs(5);
-        let ambiguous_start_exit = loop {
-            if std::time::Instant::now() >= ambiguous_start_deadline {
-                break None;
-            }
+        let ambiguous_start_exit = (0..64).find_map(|_| {
             match provider
                 .poll()
                 .expect("poll exit after ambiguous replacement start")
@@ -1301,17 +1296,14 @@ fn ambiguous_or_dead_replacement_start_preserves_result_not_exit_authority() {
                     completed_turn_authoritative,
                     completion_reconciles_exit,
                     ..
-                }) => {
-                    break Some((
-                        success,
-                        completed_turn_authoritative,
-                        completion_reconciles_exit,
-                    ));
-                }
-                _ => {}
+                }) => Some((
+                    success,
+                    completed_turn_authoritative,
+                    completion_reconciles_exit,
+                )),
+                _ => None,
             }
-            std::thread::sleep(std::time::Duration::from_millis(1));
-        };
+        });
         assert_eq!(
             ambiguous_start_exit,
             Some((false, true, false)),
@@ -1435,11 +1427,7 @@ fn ambiguous_replacement_turn_adopts_one_later_completion_identity() {
 
         let mut replacement_started = false;
         let mut replacement_completed = false;
-        let replacement_deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        let replacement_exit = loop {
-            if std::time::Instant::now() >= replacement_deadline {
-                break None;
-            }
+        let replacement_exit = (0..128).find_map(|_| {
             match provider
                 .poll()
                 .expect("poll evidence for accepted replacement turn")
@@ -1452,6 +1440,7 @@ fn ambiguous_replacement_turn_adopts_one_later_completion_identity() {
                         Some("provider-turn-2")
                     );
                     replacement_started = true;
+                    None
                 }
                 Some(CodexProviderEvent::Notification { method, params })
                     if method == "turn/completed" =>
@@ -1461,23 +1450,21 @@ fn ambiguous_replacement_turn_adopts_one_later_completion_identity() {
                         Some("provider-turn-2")
                     );
                     replacement_completed = true;
+                    None
                 }
                 Some(CodexProviderEvent::Exited {
                     success,
                     completed_turn_authoritative,
                     completion_reconciles_exit,
                     ..
-                }) => {
-                    break Some((
-                        success,
-                        completed_turn_authoritative,
-                        completion_reconciles_exit,
-                    ));
-                }
-                _ => {}
+                }) => Some((
+                    success,
+                    completed_turn_authoritative,
+                    completion_reconciles_exit,
+                )),
+                _ => None,
             }
-            std::thread::sleep(std::time::Duration::from_millis(1));
-        };
+        });
         assert!(
             replacement_started,
             "the replacement identity should be established before replaying its output for {label}"
