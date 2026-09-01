@@ -92,7 +92,7 @@ describe("SidebarRecentTasks", () => {
     expect(container.textContent).toContain("Open or create a task");
   });
 
-  it("renders refreshed task status and live state", async () => {
+  it("renders refreshed task text and live state without shifting for a status icon", async () => {
     recordRecentTask({
       id: "issue-1",
       companyId: "company-1",
@@ -124,7 +124,10 @@ describe("SidebarRecentTasks", () => {
     });
     expect(link?.textContent).toContain("Refreshed title");
     expect(link?.textContent).toContain("1 live");
-    expect(link?.querySelector('[aria-label="In Progress"]')).not.toBeNull();
+    expect(link?.querySelector('[aria-label="In Progress"]')).toBeNull();
+    const iconSpacer = link?.querySelector('[data-slot="recent-task-icon-spacer"]');
+    expect(iconSpacer).not.toBeNull();
+    expect(iconSpacer?.classList).toContain("size-3.5");
   });
 
   it("synchronizes recent tasks written by another tab", async () => {

@@ -5,7 +5,6 @@ import { useRecentTasks } from "@/hooks/useRecentTasks";
 import { useSidebar } from "@/context/SidebarContext";
 import { SidebarSection } from "./SidebarSection";
 import { SidebarNavItem } from "./SidebarNavItem";
-import { StatusIcon } from "./StatusIcon";
 
 export function SidebarRecentTasks({
   companyId,
@@ -62,7 +61,13 @@ function RecentTasksList({
           key={entry.id}
           to={`/issues/${entry.id}`}
           label={entry.title}
-          iconNode={<StatusIcon status={entry.status} size="sm" />}
+          iconNode={(
+            <span
+              data-slot="recent-task-icon-spacer"
+              className="block size-3.5"
+              aria-hidden="true"
+            />
+          )}
           liveCount={liveIssueIds.has(entry.id) ? 1 : undefined}
         />
       ))}

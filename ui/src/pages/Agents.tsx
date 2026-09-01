@@ -499,7 +499,11 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
   };
 
   return (
-    <div className="space-y-4">
+    <div className={cn(
+      effectiveView === "org"
+        ? "flex h-full min-h-0 flex-col gap-4"
+        : "space-y-4",
+    )}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Tabs value={tab} onValueChange={(v) => navigate(`/agents/${v}`)}>
           <PageTabBar

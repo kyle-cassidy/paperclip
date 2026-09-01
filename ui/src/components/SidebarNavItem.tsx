@@ -136,20 +136,24 @@ export function SidebarNavItem({
       <span className="relative shrink-0">
         {iconNode ?? (Icon ? <Icon className="h-4 w-4" /> : null)}
         {alert && (
-          <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 shadow-(--shadow-extract-12)" aria-hidden="true" />
+          <span
+            data-slot="sidebar-icon-alert-badge"
+            className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 shadow-(--shadow-sidebar-icon-badge)"
+            aria-hidden="true"
+          />
         )}
         {/* Collapsed rail: numeric badge / live count collapse to a dot on the
             icon. The icon markup is untouched so it stays pixel-aligned. */}
         {rail && !alert && hasLive && (
           <span className="absolute -right-0.5 -top-0.5 flex h-2 w-2" aria-hidden="true">
             <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-blue-600 dark:bg-blue-400 opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-600 dark:bg-blue-400 shadow-(--shadow-extract-12)" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-600 dark:bg-blue-400 shadow-(--shadow-sidebar-icon-badge)" />
           </span>
         )}
         {rail && !alert && !hasLive && hasBadge && (
           <span
             className={cn(
-              "absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full shadow-(--shadow-extract-12)",
+              "absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full shadow-(--shadow-sidebar-icon-badge)",
               badgeTone === "danger"
                 ? "bg-red-600"
                 : badgeTone === "warning"

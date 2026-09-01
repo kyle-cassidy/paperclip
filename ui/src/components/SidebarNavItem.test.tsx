@@ -82,6 +82,15 @@ describe("SidebarNavItem", () => {
     expect(link().getAttribute("aria-label")).toBeNull();
   });
 
+  it("outlines icon alert badges with the streamlined sidebar surface", () => {
+    render(<SidebarNavItem to="/inbox" label="Inbox" icon={Inbox} alert />);
+
+    const alertBadge = container.querySelector('[data-slot="sidebar-icon-alert-badge"]');
+    expect(alertBadge).not.toBeNull();
+    expect(classTokens(alertBadge)).toContain("shadow-(--shadow-sidebar-icon-badge)");
+    expect(classTokens(alertBadge)).not.toContain("shadow-(--shadow-extract-12)");
+  });
+
   it("uses the Paper nav surface for the active item", () => {
     render(<SidebarNavItem to="/issues" label="Tasks" icon={Inbox} active />);
 

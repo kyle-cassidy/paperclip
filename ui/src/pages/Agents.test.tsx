@@ -415,8 +415,11 @@ describe("Agents", () => {
     expect(orgToggle?.getAttribute("aria-pressed")).toBe("true");
     const orgViewport = container.querySelector('[data-testid="org-chart-viewport"]');
     expect(orgViewport).not.toBeNull();
-    expect(orgViewport?.parentElement?.classList.contains("h-(--sz-calc-38)")).toBe(true);
-    expect(orgViewport?.parentElement?.classList.contains("md:h-full")).toBe(false);
+    expect(orgViewport?.parentElement?.classList.contains("flex-1")).toBe(true);
+    expect(orgViewport?.parentElement?.classList.contains("md:min-h-0")).toBe(true);
+    expect(orgViewport?.parentElement?.classList.contains("h-(--sz-calc-38)")).toBe(false);
+    expect(orgViewport?.parentElement?.parentElement?.classList.contains("h-full")).toBe(true);
+    expect(orgViewport?.parentElement?.parentElement?.classList.contains("min-h-0")).toBe(true);
     expect(container.querySelector('[aria-label="Zoom in"]')).not.toBeNull();
     expect(container.querySelector('[aria-label="Zoom out"]')).not.toBeNull();
     expect(container.querySelector('[aria-label="Fit chart to screen"]')).not.toBeNull();

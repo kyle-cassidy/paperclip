@@ -479,7 +479,7 @@ export function OrgChart({ orgTree: providedOrgTree, agents: providedAgents, emb
   return (
     <div
       className={embedded
-        ? "flex h-(--sz-calc-38) min-h-(--sz-420px) flex-col"
+        ? "flex min-h-(--sz-420px) flex-1 flex-col md:min-h-0"
         : "flex h-(--sz-calc-38) min-h-(--sz-420px) flex-col md:h-full md:min-h-0"}
     >
       {!embedded && (showImport || showExport) ? (
