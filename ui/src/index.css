@@ -509,6 +509,31 @@
   line-height: var(--text-xs--line-height);
 }
 
+/* The generic line-tab variant deliberately keeps active tabs transparent.
+   The task-detail sidebar uses a filled active tab instead; the pane slot ID
+   gives this contextual treatment enough specificity without affecting other
+   line-tab surfaces. */
+#properties-pane-header-slot .task-detail-pane-tab[data-state="active"] {
+  background-color: var(--muted);
+}
+
+/* Codex-style pane tabs soften clipped labels into the tab surface. The mask
+   stays on the label itself so short names remain visually untouched. */
+.task-detail-pane-tab-label {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    var(--foreground) 0,
+    var(--foreground) calc(100% - calc(var(--spacing) * 4)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    var(--foreground) 0,
+    var(--foreground) calc(100% - calc(var(--spacing) * 4)),
+    transparent 100%
+  );
+}
+
 /* Light mode scrollbar on hover */
 .scrollbar-auto-hide:hover {
   scrollbar-color: oklch(0.7 0 0) transparent;

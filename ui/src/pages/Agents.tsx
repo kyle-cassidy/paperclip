@@ -26,7 +26,7 @@ import { relativeTime, cn, agentRouteRef, agentUrl } from "../lib/utils";
 import { PageTabBar } from "../components/PageTabBar";
 import { Tabs } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Bot, Plus, List, GitBranch } from "lucide-react";
+import { AlertTriangle, Bot, Plus, List, Network } from "lucide-react";
 import { AGENT_ROLE_LABELS, type Agent, type Environment, type EnvironmentCapabilities } from "@paperclipai/shared";
 import {
   isStarred,
@@ -532,7 +532,7 @@ export function Agents({ initialView = "list" }: { initialView?: AgentsView } = 
                 aria-label="Org chart view"
                 aria-pressed={effectiveView === "org"}
               >
-                <GitBranch className="h-3.5 w-3.5" />
+                <Network className="h-3.5 w-3.5" />
               </Button>
           </div> : null}
           <Button size="sm" variant="outline" onClick={openNewAgent}>

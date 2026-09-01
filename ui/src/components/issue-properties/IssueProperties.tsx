@@ -67,9 +67,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { IssuePropertiesPlansTab } from "./IssuePropertiesPlansTab";
 import { IssuePropertiesArtifactsTab } from "./IssuePropertiesArtifactsTab";
-import { User, ArrowUpRight, Plus, GitBranch, FolderOpen, HardDrive, Check, Clock, RotateCcw, Loader2, CheckCircle2, ArchiveRestore } from "lucide-react";
+import { User, ArrowUpRight, Plus, X, GitBranch, FolderOpen, HardDrive, Check, Clock, RotateCcw, Loader2, CheckCircle2, ArchiveRestore } from "lucide-react";
 import { AgentIcon } from "../AgentIconPicker";
 import { InlineEntitySelector, type InlineEntityOption } from "../InlineEntitySelector";
 import {
@@ -192,6 +198,17 @@ export interface IssuePropertiesDocumentDeepLink {
 
 const ISSUE_BLOCKER_SEARCH_LIMIT = 50;
 const ISSUE_PROPERTY_RELATION_PREVIEW_COUNT = 5;
+const STREAMLINED_PANE_TAB_CLASS =
+  "task-detail-pane-tab h-7 rounded-md text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+type IssuePaneTab = "properties" | "subtasks" | "references" | "plans" | "artifacts";
+
+interface IssuePaneTabDescriptor {
+  value: IssuePaneTab;
+  label: string;
+  count?: number;
+  closable: boolean;
+}
 
 export function IssueProperties({
   issue,
@@ -277,7 +294,8 @@ export function IssueProperties({
     (paneTabWorkProducts?.length ?? 0) > 0
     || paneTabStandaloneDocuments.length > 0
     || selectAgentArtifactAttachments(paneTabAttachments, paneTabWorkProducts).length > 0;
-  const [paneTab, setPaneTab] = useState("properties");
+  const [paneTab, setPaneTab] = useState<IssuePaneTab>("properties");
+  const [closedPaneTabs, setClosedPaneTabs] = useState<Set<IssuePaneTab>>(() => new Set());
   // Once a plan document exists, surface it: switch the pane to the Plan tab so
   // the write-up is exposed alongside the plan-approval card, instead of leaving
   // the user on Properties. Only auto-switch until the user picks a tab by hand —
@@ -285,8 +303,11 @@ export function IssueProperties({
   const paneTabUserChosenRef = useRef(false);
   const handlePaneTabChange = useCallback((value: string) => {
     paneTabUserChosenRef.current = true;
-    setPaneTab(value);
+    setPaneTab(value as IssuePaneTab);
   }, []);
+  useEffect(() => {
+    setClosedPaneTabs(new Set());
+  }, [issue.id]);
   useEffect(() => {
     if (hasPlanTab && !paneTabUserChosenRef.current) {
       setPaneTab("plans");
@@ -296,6 +317,12 @@ export function IssueProperties({
     if (!documentDeepLink) return;
     paneTabUserChosenRef.current = true;
     setPaneTab(documentDeepLink.tab);
+    setClosedPaneTabs((current) => {
+      if (!current.has(documentDeepLink.tab)) return current;
+      const next = new Set(current);
+      next.delete(documentDeepLink.tab);
+      return next;
+    });
   }, [documentDeepLink]);
   const [assigneeOpen, setAssigneeOpen] = useState(false);
   const [assigneeSearch, setAssigneeSearch] = useState("");
@@ -2774,6 +2801,25 @@ export function IssueProperties({
   const hasSubtasksTab = streamlinedPropertiesEnabled && childIssues.length > 0;
   const hasReferencesTab = streamlinedPropertiesEnabled
     && (panelReferencedTasks.length > 0 || panelMentionedInTasks.length > 0);
+  const availablePaneTabs: IssuePaneTabDescriptor[] = [
+    { value: "properties", label: "Properties", closable: false },
+    ...(hasSubtasksTab
+      ? [{ value: "subtasks" as const, label: "Subtasks", count: childIssues.length, closable: true }]
+      : []),
+    ...(hasReferencesTab
+      ? [{ value: "references" as const, label: "References", closable: true }]
+      : []),
+    ...(hasPlanTab
+      ? [{ value: "plans" as const, label: "Plan", closable: true }]
+      : []),
+    ...(hasArtifactsTab
+      ? [{ value: "artifacts" as const, label: "Artifacts", closable: true }]
+      : []),
+  ];
+  const visiblePaneTabs = availablePaneTabs.filter(
+    (tab) => tab.value === "properties" || !closedPaneTabs.has(tab.value),
+  );
+  const hiddenPaneTabs = availablePaneTabs.filter((tab) => closedPaneTabs.has(tab.value));
 
   // Chat-style with nothing to switch between: render one selected tab button
   // so the header uses the same filled-tab treatment as the multi-tab state.
@@ -2787,7 +2833,10 @@ export function IssueProperties({
                   type="button"
                   role="tab"
                   aria-selected="true"
-                  className="h-7 rounded-md bg-muted px-2.5 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className={cn(
+                    STREAMLINED_PANE_TAB_CLASS,
+                    "inline-flex flex-none items-center bg-muted px-3",
+                  )}
                 >
                   Properties
                 </button>
@@ -2811,56 +2860,148 @@ export function IssueProperties({
     || (paneTab === "artifacts" && !hasArtifactsTab)
     || (paneTab === "subtasks" && !hasSubtasksTab)
     || (paneTab === "references" && !hasReferencesTab)
+    || closedPaneTabs.has(paneTab)
       ? "properties"
       : paneTab;
-  // In the pane header the strip stretches to the bar's full height and the
-  // active underline drops to bottom-0, so it hugs the header's border line.
+  const closePaneTab = (value: IssuePaneTab) => {
+    if (value === "properties") return;
+    paneTabUserChosenRef.current = true;
+    setClosedPaneTabs((current) => {
+      const next = new Set(current);
+      next.add(value);
+      return next;
+    });
+    if (activePaneTab !== value) return;
+    const closingIndex = visiblePaneTabs.findIndex((tab) => tab.value === value);
+    const fallback = visiblePaneTabs[closingIndex - 1]
+      ?? visiblePaneTabs[closingIndex + 1]
+      ?? availablePaneTabs[0];
+    setPaneTab(fallback.value);
+  };
+  const reopenPaneTab = (value: IssuePaneTab) => {
+    paneTabUserChosenRef.current = true;
+    setClosedPaneTabs((current) => {
+      if (!current.has(value)) return current;
+      const next = new Set(current);
+      next.delete(value);
+      return next;
+    });
+    setPaneTab(value);
+  };
+  const codexStylePaneTabs = Boolean(paneHeaderSlot && streamlinedPropertiesEnabled);
+  // Production keeps the master underline treatment. Streamlined task detail
+  // uses the compact, truncating Codex-inspired pane-tab treatment instead.
   const paneTabTriggerClass = paneHeaderSlot
     ? streamlinedPropertiesEnabled
-      ? "h-7 flex-none rounded-md px-2.5 after:hidden data-[state=active]:bg-muted dark:data-[state=active]:bg-muted"
+      ? cn(
+          STREAMLINED_PANE_TAB_CLASS,
+          "min-w-0 flex-1 justify-start overflow-hidden after:hidden",
+        )
       : "h-full group-data-[orientation=horizontal]/tabs:after:bottom-0"
     : undefined;
-  const tabStrip = (
+  const paneTabs = codexStylePaneTabs ? visiblePaneTabs : availablePaneTabs;
+  const tabList = (
     <TabsList
       variant="line"
       className={
         paneHeaderSlot
           ? streamlinedPropertiesEnabled
-            ? "items-center justify-start gap-1 p-0 group-data-[orientation=horizontal]/tabs:h-full"
+            ? "min-w-0 flex-1 items-center justify-start gap-0 overflow-hidden p-0 group-data-[orientation=horizontal]/tabs:h-full"
             : "items-stretch justify-start gap-1 p-0 group-data-[orientation=horizontal]/tabs:h-full"
           : "w-full justify-start gap-1"
       }
     >
-      <TabsTrigger value="properties" className={paneTabTriggerClass}>
-        Properties
-      </TabsTrigger>
-      {hasSubtasksTab ? (
-        <TabsTrigger value="subtasks" className={paneTabTriggerClass}>
-          Subtasks
-          {childIssues.length > 0 ? (
-            <span className="font-mono text-(length:--text-nano) text-muted-foreground">
-              {childIssues.length}
+      {paneTabs.map((tab, index) => {
+        const trigger = (
+          <TabsTrigger
+            key={codexStylePaneTabs ? undefined : tab.value}
+            value={tab.value}
+            className={cn(
+              paneTabTriggerClass,
+              codexStylePaneTabs && "mx-1.5 hover:bg-accent/50 group-focus-within/pane-tab:bg-accent/50",
+              codexStylePaneTabs && "px-3",
+            )}
+          >
+            <span
+              className={cn(
+                codexStylePaneTabs
+                  && "task-detail-pane-tab-label min-w-0 flex-1 overflow-hidden whitespace-nowrap",
+              )}
+              title={tab.label}
+            >
+              {tab.label}
             </span>
-          ) : null}
-        </TabsTrigger>
-      ) : null}
-      {hasReferencesTab ? (
-        <TabsTrigger value="references" className={paneTabTriggerClass}>
-          References
-        </TabsTrigger>
-      ) : null}
-      {hasPlanTab ? (
-        <TabsTrigger value="plans" className={paneTabTriggerClass}>
-          Plan
-        </TabsTrigger>
-      ) : null}
-      {hasArtifactsTab ? (
-        <TabsTrigger value="artifacts" className={paneTabTriggerClass}>
-          Artifacts
-        </TabsTrigger>
-      ) : null}
+            {tab.count ? (
+              <span className="shrink-0 font-mono text-(length:--text-nano) text-muted-foreground transition-opacity group-hover/pane-tab:opacity-0 group-focus-within/pane-tab:opacity-0">
+                {tab.count}
+              </span>
+            ) : null}
+          </TabsTrigger>
+        );
+        if (!codexStylePaneTabs) return trigger;
+        return (
+          <div
+            key={tab.value}
+            data-slot="task-detail-pane-tab"
+            className="group/pane-tab relative flex min-w-0 flex-1 basis-0 items-center"
+          >
+            {index > 0 ? (
+              <span
+                data-slot="task-detail-pane-tab-divider"
+                aria-hidden="true"
+                className="absolute left-0 top-1/2 h-4 w-px -translate-y-1/2 bg-border"
+              />
+            ) : null}
+            {trigger}
+            {tab.closable ? (
+              <button
+                type="button"
+                className="absolute right-2.5 top-1/2 z-20 inline-flex size-5 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-(length:--rad-3) focus-visible:ring-ring group-hover/pane-tab:opacity-100 group-focus-within/pane-tab:opacity-100"
+                aria-label={`Close ${tab.label} tab`}
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  closePaneTab(tab.value);
+                }}
+              >
+                <X className="size-3.5" aria-hidden />
+              </button>
+            ) : null}
+          </div>
+        );
+      })}
     </TabsList>
   );
+  const tabStrip = codexStylePaneTabs ? (
+    <div className="flex h-full min-w-0 flex-1 items-center">
+      {tabList}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="size-6 shrink-0 text-muted-foreground"
+            disabled={hiddenPaneTabs.length === 0}
+            aria-label="Open closed sidebar tab"
+            title={hiddenPaneTabs.length === 0 ? "All sidebar tabs are open" : "Open closed sidebar tab"}
+          >
+            <Plus className="size-3.5" aria-hidden />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-(--sz-8rem)">
+          {hiddenPaneTabs.map((tab) => (
+            <DropdownMenuItem key={tab.value} onClick={() => reopenPaneTab(tab.value)}>
+              {tab.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  ) : tabList;
   return (
     <Tabs value={activePaneTab} onValueChange={handlePaneTabChange} className="flex min-h-0 flex-col gap-3">
       {paneHeaderSlot

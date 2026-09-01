@@ -547,6 +547,91 @@ describe("IssueProperties", () => {
     expect(tab?.textContent).toBe("Properties");
     expect(tab?.getAttribute("aria-selected")).toBe("true");
     expect(tab?.classList).toContain("bg-muted");
+    expect(tab?.classList).toContain("px-3");
+    expect(tab?.classList).toContain("inline-flex");
+
+    act(() => root.unmount());
+  });
+
+  it("uses the same filled active-tab treatment in a multi-tab pane header", async () => {
+    const headerSlot = document.createElement("div");
+    headerSlot.id = "properties-pane-header-slot";
+    document.body.appendChild(headerSlot);
+
+    const root = renderProperties(container, {
+      issue: createIssue(),
+      childIssues: [createIssue({ id: "child-1", identifier: "PAP-2", title: "Child task" })],
+      onUpdate: vi.fn(),
+    });
+    await flush();
+
+    const tabs = Array.from(headerSlot.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+    const propertiesTab = tabs.find((tab) => tab.textContent === "Properties");
+    const subtasksTab = tabs.find((tab) => tab.textContent?.includes("Subtasks"));
+    const tabItems = Array.from(headerSlot.querySelectorAll<HTMLElement>('[data-slot="task-detail-pane-tab"]'));
+    const tabDividers = Array.from(headerSlot.querySelectorAll<HTMLElement>('[data-slot="task-detail-pane-tab-divider"]'));
+    const subtasksLabel = subtasksTab?.querySelector<HTMLElement>('[title="Subtasks"]');
+    const subtasksCount = Array.from(subtasksTab?.querySelectorAll<HTMLElement>("span") ?? [])
+      .find((span) => span.textContent === "1");
+    const closeSubtasks = headerSlot.querySelector<HTMLButtonElement>('[aria-label="Close Subtasks tab"]');
+    const openClosedTab = headerSlot.querySelector<HTMLButtonElement>('[aria-label="Open closed sidebar tab"]');
+
+    expect(propertiesTab?.getAttribute("data-state")).toBe("active");
+    expect(subtasksTab?.getAttribute("data-state")).toBe("inactive");
+    expect(tabItems).toHaveLength(2);
+    expect(tabDividers).toHaveLength(1);
+    expect(tabDividers[0]?.classList).toContain("h-4");
+    expect(propertiesTab?.classList).toContain("mx-1.5");
+    expect(propertiesTab?.classList).toContain("px-3");
+    expect(subtasksTab?.classList).toContain("px-3");
+    expect(subtasksTab?.classList).toContain("hover:bg-accent/50");
+    expect(subtasksLabel?.classList).toContain("task-detail-pane-tab-label");
+    expect(subtasksLabel?.classList).toContain("flex-1");
+    expect(subtasksLabel?.classList).toContain("overflow-hidden");
+    expect(subtasksLabel?.classList).toContain("whitespace-nowrap");
+    expect(subtasksCount?.classList).toContain("group-hover/pane-tab:opacity-0");
+    expect(closeSubtasks?.classList).toContain("opacity-0");
+    expect(closeSubtasks?.classList).toContain("right-2.5");
+    expect(closeSubtasks?.classList).toContain("group-hover/pane-tab:opacity-100");
+    expect(openClosedTab?.classList).toContain("size-6");
+    expect(openClosedTab?.classList).not.toContain("ml-1");
+    expect(openClosedTab?.disabled).toBe(true);
+    for (const tab of tabs) {
+      expect(tab.classList).toContain("task-detail-pane-tab");
+      expect(tab.classList).toContain("h-7");
+      expect(tab.classList).toContain("rounded-md");
+    }
+
+    await act(async () => {
+      subtasksTab?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }));
+    });
+
+    expect(propertiesTab?.getAttribute("data-state")).toBe("inactive");
+    expect(subtasksTab?.getAttribute("data-state")).toBe("active");
+
+    await act(async () => closeSubtasks?.click());
+    expect(headerSlot.querySelector('[role="tab"][data-state="active"]')?.textContent).toBe("Properties");
+    expect(headerSlot.textContent).not.toContain("Subtasks");
+    expect(openClosedTab?.disabled).toBe(false);
+
+    await act(async () => {
+      openClosedTab?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 }));
+      openClosedTab?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flush();
+    let reopenSubtasks: HTMLElement | undefined;
+    await waitForAssertion(() => {
+      reopenSubtasks = Array.from(document.body.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+        .find((item) => item.textContent === "Subtasks");
+      expect(reopenSubtasks).not.toBeUndefined();
+    });
+
+    await act(async () => {
+      reopenSubtasks?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 }));
+      reopenSubtasks?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flush();
+    expect(headerSlot.querySelector('[role="tab"][data-state="active"]')?.textContent).toContain("Subtasks");
 
     act(() => root.unmount());
   });

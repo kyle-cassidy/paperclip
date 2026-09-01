@@ -401,6 +401,8 @@ describe("Agents", () => {
     const orgToggle = container.querySelector<HTMLButtonElement>('button[aria-label="Org chart view"]');
     expect(listToggle?.getAttribute("aria-pressed")).toBe("true");
     expect(orgToggle?.getAttribute("aria-pressed")).toBe("false");
+    expect(orgToggle?.querySelector(".lucide-network")).not.toBeNull();
+    expect(orgToggle?.querySelector(".lucide-git-branch")).toBeNull();
     expect(container.querySelector('[data-testid="org-chart-viewport"]')).toBeNull();
 
     await act(async () => {
@@ -411,7 +413,13 @@ describe("Agents", () => {
 
     expect(mockAgentsApi.org).toHaveBeenCalledWith("company-1");
     expect(orgToggle?.getAttribute("aria-pressed")).toBe("true");
-    expect(container.querySelector('[data-testid="org-chart-viewport"]')).not.toBeNull();
+    const orgViewport = container.querySelector('[data-testid="org-chart-viewport"]');
+    expect(orgViewport).not.toBeNull();
+    expect(orgViewport?.parentElement?.classList.contains("h-(--sz-calc-38)")).toBe(true);
+    expect(orgViewport?.parentElement?.classList.contains("md:h-full")).toBe(false);
+    expect(container.querySelector('[aria-label="Zoom in"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Zoom out"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Fit chart to screen"]')).not.toBeNull();
 
     await act(async () => {
       listToggle?.click();

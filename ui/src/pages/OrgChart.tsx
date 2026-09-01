@@ -24,6 +24,7 @@ const GAP_Y = 80;
 const PADDING = 60;
 const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 2;
+const FIT_PADDING = 40;
 const TOUCH_MOVE_THRESHOLD = 6;
 
 // ── Tree layout types ───────────────────────────────────────────────────
@@ -137,6 +138,28 @@ function collectEdges(nodes: LayoutNode[]): Array<{ parent: LayoutNode; child: L
 
 function clampZoom(value: number): number {
   return Math.min(Math.max(value, MIN_ZOOM), MAX_ZOOM);
+}
+
+function fitChartToViewport(
+  containerWidth: number,
+  containerHeight: number,
+  bounds: { width: number; height: number },
+): { zoom: number; pan: Point } | null {
+  if (containerWidth <= FIT_PADDING || containerHeight <= FIT_PADDING) return null;
+
+  const scaleX = (containerWidth - FIT_PADDING) / bounds.width;
+  const scaleY = (containerHeight - FIT_PADDING) / bounds.height;
+  const zoom = clampZoom(Math.min(scaleX, scaleY, 1));
+  const chartWidth = bounds.width * zoom;
+  const chartHeight = bounds.height * zoom;
+
+  return {
+    zoom,
+    pan: {
+      x: (containerWidth - chartWidth) / 2,
+      y: (containerHeight - chartHeight) / 2,
+    },
+  };
 }
 
 function touchPoint(touch: React.Touch): Point {
@@ -268,25 +291,13 @@ export function OrgChart({ orgTree: providedOrgTree, agents: providedAgents, emb
 
   useEffect(() => {
     if (hasInitialized.current || allNodes.length === 0 || !containerRef.current) return;
-    hasInitialized.current = true;
-
     const container = containerRef.current;
-    const containerW = container.clientWidth;
-    const containerH = container.clientHeight;
+    const fitted = fitChartToViewport(container.clientWidth, container.clientHeight, bounds);
+    if (!fitted) return;
 
-    // Fit chart to container
-    const scaleX = (containerW - 40) / bounds.width;
-    const scaleY = (containerH - 40) / bounds.height;
-    const fitZoom = Math.min(scaleX, scaleY, 1);
-
-    const chartW = bounds.width * fitZoom;
-    const chartH = bounds.height * fitZoom;
-
-    setZoom(fitZoom);
-    setPan({
-      x: (containerW - chartW) / 2,
-      y: (containerH - chartH) / 2,
-    });
+    hasInitialized.current = true;
+    setZoom(fitted.zoom);
+    setPan(fitted.pan);
   }, [allNodes, bounds]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -342,15 +353,15 @@ export function OrgChart({ orgTree: providedOrgTree, agents: providedAgents, emb
 
   const fitToScreen = useCallback(() => {
     if (!containerRef.current) return;
-    const cW = containerRef.current.clientWidth;
-    const cH = containerRef.current.clientHeight;
-    const scaleX = (cW - 40) / bounds.width;
-    const scaleY = (cH - 40) / bounds.height;
-    const fitZoom = Math.min(scaleX, scaleY, 1);
-    const chartW = bounds.width * fitZoom;
-    const chartH = bounds.height * fitZoom;
-    setZoom(fitZoom);
-    setPan({ x: (cW - chartW) / 2, y: (cH - chartH) / 2 });
+    const fitted = fitChartToViewport(
+      containerRef.current.clientWidth,
+      containerRef.current.clientHeight,
+      bounds,
+    );
+    if (!fitted) return;
+
+    setZoom(fitted.zoom);
+    setPan(fitted.pan);
   }, [bounds]);
 
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
@@ -466,7 +477,11 @@ export function OrgChart({ orgTree: providedOrgTree, agents: providedAgents, emb
   }
 
   return (
-    <div className="flex h-(--sz-calc-38) min-h-(--sz-420px) flex-col md:h-full md:min-h-0">
+    <div
+      className={embedded
+        ? "flex h-(--sz-calc-38) min-h-(--sz-420px) flex-col"
+        : "flex h-(--sz-calc-38) min-h-(--sz-420px) flex-col md:h-full md:min-h-0"}
+    >
       {!embedded && (showImport || showExport) ? (
         <div className="mb-2 flex shrink-0 flex-wrap items-center justify-start gap-2">
         {showImport ? (

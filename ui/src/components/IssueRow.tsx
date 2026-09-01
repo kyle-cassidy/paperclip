@@ -81,9 +81,11 @@ export interface IssueRowProps {
 export function InboxArchiveButton({
   onArchive,
   disabled,
+  compact = false,
 }: {
   onArchive: () => void;
   disabled?: boolean;
+  compact?: boolean;
 }) {
   return (
     <button
@@ -101,7 +103,10 @@ export function InboxArchiveButton({
         onArchive();
       }}
       disabled={disabled}
-      className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100 disabled:pointer-events-none disabled:opacity-30"
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100 disabled:pointer-events-none disabled:opacity-30",
+        compact ? "h-5 py-0" : "py-1",
+      )}
       aria-label="Archive"
     >
       <Archive className="h-3.5 w-3.5" />
@@ -329,7 +334,7 @@ export function IssueRow({
           {metadata ? <span data-slot="task-row-metadata" className="min-w-0">{metadata}</span> : null}
           {desktopTrailing}
           {actions ? <span data-slot="task-row-actions" className="flex shrink-0 items-center gap-1">{actions}</span> : null}
-          {onArchive ? <InboxArchiveButton onArchive={onArchive} disabled={archiveDisabled} /> : null}
+          {onArchive ? <InboxArchiveButton onArchive={onArchive} disabled={archiveDisabled} compact /> : null}
           {showIdentifier ? (
             <span data-slot="task-row-identifier" className="w-20 shrink-0 text-right font-mono text-xs text-muted-foreground">
               {identifier}

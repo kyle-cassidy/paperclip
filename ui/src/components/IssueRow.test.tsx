@@ -164,6 +164,41 @@ describe("IssueRow", () => {
     act(() => root.unmount());
   });
 
+  it("keeps the canonical archive action within the shared task-row height", () => {
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(
+        <IssueRow
+          issue={createIssue()}
+          presentation="task"
+          onArchive={() => undefined}
+        />,
+      );
+    });
+
+    const archiveButton = container.querySelector<HTMLButtonElement>('button[aria-label="Archive"]');
+    expect(archiveButton?.className).toContain("h-5");
+    expect(archiveButton?.className).toContain("py-0");
+    expect(archiveButton?.className).not.toContain("py-1");
+
+    act(() => root.unmount());
+  });
+
+  it("preserves the legacy archive action density", () => {
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(<IssueRow issue={createIssue()} onArchive={() => undefined} />);
+    });
+
+    const archiveButton = container.querySelector<HTMLButtonElement>('button[aria-label="Archive"]');
+    expect(archiveButton?.className).toContain("py-1");
+    expect(archiveButton?.className).not.toContain("h-5");
+
+    act(() => root.unmount());
+  });
+
   it("emphasizes unread canonical titles and overlays the accessible mark-read control", () => {
     const root = createRoot(container);
     const onMarkRead = vi.fn();
