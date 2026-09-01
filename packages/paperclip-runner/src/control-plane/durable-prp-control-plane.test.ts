@@ -672,4 +672,84 @@ describe.sequential("DurablePrpControlPlane", () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it("accepts an indeterminate command result, absorbs its replay, and persists it across a restart", async () => {
+    const root = mkdtempSync(resolve(tmpdir(), "paperclip-prp-indeterminate-"));
+    const first = new DurablePrpControlPlane({
+      stateDirectory: root,
+      identity,
+      expectedRunnerVersion,
+      expectedRunnerDigest,
+    });
+    try {
+      await first.start();
+      first.queueCommand(
+        "run.cancel",
+        { reason: "test" },
+        "command-indeterminate-a",
+      );
+      first.queueCommand(
+        "run.cancel",
+        { reason: "test" },
+        "command-indeterminate-b",
+      );
+      const client = await authenticate(first, first.issueBootstrapTicket());
+      const pendingCommands = (
+        client!.welcome.payload as Record<string, unknown>
+      ).pendingCommands as Array<Record<string, unknown>>;
+      expect(pendingCommands).toHaveLength(1);
+      expect(pendingCommands[0]!.commandId).toBe("command-indeterminate-a");
+
+      const commandResult = {
+        protocol: "paperclip.runner",
+        version: 1,
+        kind: "command_result",
+        payload: {
+          commandId: "command-indeterminate-a",
+          status: "indeterminate",
+          result: { ok: true },
+        },
+      };
+
+      sendSecure(client!, commandResult);
+      const next = await receiveSecure(client!);
+      expect(next).toMatchObject({
+        kind: "command",
+        payload: { commandId: "command-indeterminate-b" },
+      });
+      expect(first.store.state.commands[0]).toMatchObject({
+        commandId: "command-indeterminate-a",
+        status: "indeterminate",
+      });
+      expect(first.store.state.duplicateCommandResults).toBe(0);
+
+      sendSecure(client!, commandResult);
+      const resent = await receiveSecure(client!);
+      expect(resent).toMatchObject({
+        kind: "command",
+        payload: { commandId: "command-indeterminate-b" },
+      });
+      expect(first.store.state.duplicateCommandResults).toBe(1);
+
+      client?.socket.destroy();
+    } finally {
+      await first.stop();
+    }
+
+    const recovered = new DurablePrpControlPlane({
+      stateDirectory: root,
+      identity,
+      expectedRunnerVersion,
+      expectedRunnerDigest,
+    });
+    try {
+      expect(recovered.store.state.commands[0]).toMatchObject({
+        commandId: "command-indeterminate-a",
+        status: "indeterminate",
+      });
+    } finally {
+      await recovered.stop();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
