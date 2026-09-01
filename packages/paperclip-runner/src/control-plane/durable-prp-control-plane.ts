@@ -380,7 +380,7 @@ function isStoredCoreState(
         commandTypes.has(command.type) &&
         typeof command.issuedAt === "string" &&
         isRecord(command.payload) &&
-        ["pending", "completed", "failed", "rejected"].includes(
+        ["pending", "completed", "failed", "rejected", "indeterminate"].includes(
           String(command.status),
         ) &&
         (command.result === null || isRecord(command.result)),
@@ -1644,7 +1644,13 @@ export class DurablePrpControlPlane {
     if (
       status !== "completed" &&
       status !== "failed" &&
-      status !== "rejected"
+      status !== "rejected" &&
+      // The runner reports "indeterminate" for a command it journaled but
+      // did not confirm as executed before an earlier crash. It replays
+      // the stored result instead of running the command again, so the
+      // control plane must accept this status rather than close the
+      // connection and force an endless reconnect loop.
+      status !== "indeterminate"
     ) {
       connection.close();
       return;

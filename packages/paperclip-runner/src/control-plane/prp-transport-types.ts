@@ -14,7 +14,10 @@ export interface DurableRecoveryCoreCommand {
   type: string;
   issuedAt: string;
   payload: Record<string, unknown>;
-  status: "pending" | "completed" | "failed" | "rejected";
+  // The runner reports "indeterminate" when it recovers a command that it
+  // journaled but did not confirm as executed before an earlier crash. It
+  // replays the stored result instead of running the command again.
+  status: "pending" | "completed" | "failed" | "rejected" | "indeterminate";
   result: Record<string, unknown> | null;
 }
 
