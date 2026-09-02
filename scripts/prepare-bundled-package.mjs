@@ -136,6 +136,20 @@ export function applyBundledDependencyPatches(destinationDir, bundledDependencie
   }
 }
 
+/**
+ * `pnpm pack` runs a package's `prepack` lifecycle before packing. Packages with
+ * bundled dependencies bypass `pnpm pack` (the git-ref installer and release
+ * path stage them through this script instead), so nothing ran `prepack` and
+ * artifacts it produces went missing — e.g. the server's `prepack` builds
+ * `ui-dist`, which is listed in its `files` and copied below. Run it here to
+ * keep parity with the `pnpm pack` path.
+ */
+export function runPrepackIfPresent(sourceDir, sourcePackage) {
+  if (!sourcePackage.scripts?.prepack) return;
+  if (process.env.PAPERCLIP_BUNDLED_PACKAGE_SKIP_PREPACK === "1") return;
+  execFileSync("pnpm", ["run", "prepack"], { cwd: sourceDir, stdio: "inherit" });
+}
+
 export function prepareBundledPackage(sourceDir, destinationDir) {
   const sourcePackagePath = resolve(sourceDir, "package.json");
   const sourcePackage = JSON.parse(readFileSync(sourcePackagePath, "utf8"));
@@ -144,6 +158,8 @@ export function prepareBundledPackage(sourceDir, destinationDir) {
   if (bundledDependencies.length === 0) {
     throw new Error(`${sourcePackage.name} does not declare bundled dependencies`);
   }
+
+  runPrepackIfPresent(sourceDir, sourcePackage);
 
   rmSync(destinationDir, { recursive: true, force: true });
   mkdirSync(destinationDir, { recursive: true });
