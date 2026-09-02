@@ -150,6 +150,15 @@ export function runPrepackIfPresent(sourceDir, sourcePackage) {
   execFileSync("pnpm", ["run", "prepack"], { cwd: sourceDir, stdio: "inherit" });
 }
 
+export function stripLifecycleScripts(manifest) {
+  if (!manifest.scripts) return manifest;
+  for (const key of ["prepack", "postpack", "prepare", "prepublish", "prepublishOnly"]) {
+    delete manifest.scripts[key];
+  }
+  if (Object.keys(manifest.scripts).length === 0) delete manifest.scripts;
+  return manifest;
+}
+
 export function prepareBundledPackage(sourceDir, destinationDir) {
   const sourcePackagePath = resolve(sourceDir, "package.json");
   const sourcePackage = JSON.parse(readFileSync(sourcePackagePath, "utf8"));
@@ -181,6 +190,11 @@ export function prepareBundledPackage(sourceDir, destinationDir) {
     ["install", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"],
     { cwd: destinationDir, stdio: "inherit" },
   );
+  // The staged directory is a finished artifact; lifecycle scripts already ran in the
+  // source package (see runPrepackIfPresent). Strip them so a later `npm pack` of the
+  // staged dir does not re-run them from a location where `../scripts` does not exist.
+  // release-lib.sh gets the same effect by packing with --ignore-scripts.
+  stripLifecycleScripts(publishManifest);
   writeFileSync(deployedPackagePath, `${JSON.stringify(publishManifest, null, 2)}\n`);
   applyBundledDependencyPatches(destinationDir, bundledDependencies);
 
