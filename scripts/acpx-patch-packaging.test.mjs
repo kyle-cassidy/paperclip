@@ -250,6 +250,8 @@ test("server package staging bundles and patches the vendored runner's acpx runt
     `#!/usr/bin/env bash
 set -euo pipefail
 printf 'pnpm %s\\n' "$*" >> "$FAKE_CALL_LOG"
+if [ "$1" = "run" ]; then exit 0; fi
+if [ "$1" = "-r" ]; then echo "[]"; exit 0; fi
 destination="\${!#}"
 cp "$FAKE_SOURCE_PACKAGE" "$destination/package.json"
 mkdir -p "$destination/node_modules/.pnpm"
@@ -319,6 +321,12 @@ printf 'patched spawnEnvironment runtime\\n' > "$target/dist/runtime.js"
     readFileSync(callLog, "utf8").split("\n").filter((line) => line.startsWith("patch ")).length,
     1,
   );
+  // prepack runs in the source package (it builds ui-dist for the server), and the
+  // staged manifest drops lifecycle scripts so a later npm pack does not re-run it.
+  assert.match(readFileSync(callLog, "utf8"), /^pnpm run prepack$/m);
+  const stagedManifest = JSON.parse(readFileSync(join(destinationDir, "package.json"), "utf8"));
+  assert.equal(stagedManifest.scripts?.prepack, undefined);
+  assert.equal(stagedManifest.scripts?.prepare, undefined);
 });
 
 test("bundled package dry runs preview without querying published versions", () => {

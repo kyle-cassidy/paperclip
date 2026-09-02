@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
-export function materializePublishManifest(pkg) {
+export function materializePublishManifest(pkg, workspaceVersions = {}) {
   const publishConfig = pkg.publishConfig ?? {};
   const publishManifest = { ...pkg };
 
@@ -22,7 +22,7 @@ export function materializePublishManifest(pkg) {
         if (typeof specifier !== "string" || !specifier.startsWith("workspace:")) return [name, specifier];
         const range = specifier.slice("workspace:".length);
         const prefix = range === "^" || range === "~" ? range : "";
-        return [name, `${prefix}${pkg.version}`];
+        return [name, `${prefix}${workspaceVersions[name] ?? pkg.version}`];
       }),
     );
   }
@@ -150,6 +150,21 @@ export function runPrepackIfPresent(sourceDir, sourcePackage) {
   execFileSync("pnpm", ["run", "prepack"], { cwd: sourceDir, stdio: "inherit" });
 }
 
+/**
+ * Map of workspace package name -> version, so `workspace:*` specifiers resolve to
+ * the dependency's real version. pnpm pack does this itself; this staging path must
+ * do it by hand, and the depending package's own version is wrong whenever workspace
+ * versions differ (server 0.3.1 depends on plugin-sdk 1.0.0 and paperclip-runner 0.0.0).
+ */
+export function readWorkspaceVersions(cwd = repoRoot) {
+  const raw = execFileSync("pnpm", ["-r", "ls", "--depth", "-1", "--json"], { cwd, encoding: "utf8" });
+  const versions = {};
+  for (const entry of JSON.parse(raw)) {
+    if (entry?.name && entry?.version) versions[entry.name] = entry.version;
+  }
+  return versions;
+}
+
 export function stripLifecycleScripts(manifest) {
   if (!manifest.scripts) return manifest;
   for (const key of ["prepack", "postpack", "prepare", "prepublish", "prepublishOnly"]) {
@@ -181,7 +196,7 @@ export function prepareBundledPackage(sourceDir, destinationDir) {
   }
 
   const deployedPackagePath = resolve(destinationDir, "package.json");
-  const publishManifest = materializePublishManifest(sourcePackage);
+  const publishManifest = materializePublishManifest(sourcePackage, readWorkspaceVersions());
   const installManifest = createBundledInstallManifest(publishManifest, bundledDependencies);
   writeFileSync(deployedPackagePath, `${JSON.stringify(installManifest, null, 2)}\n`);
 
